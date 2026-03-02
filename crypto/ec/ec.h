@@ -7,7 +7,7 @@
  * \author Originally written by Bodo Moeller for the OpenSSL project
  */
 /* ====================================================================
- * Copyright (c) 1998-2019 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2020 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1182,6 +1182,7 @@ void ERR_load_EC_strings(void);
 # define EC_F_EC_KEY_PRINT                                180
 # define EC_F_EC_KEY_PRINT_FP                             181
 # define EC_F_EC_KEY_SET_PUBLIC_KEY_AFFINE_COORDINATES    229
+# define EC_F_EC_MUL_CONSTTIME                            246
 # define EC_F_EC_POINTS_MAKE_AFFINE                       136
 # define EC_F_EC_POINT_ADD                                112
 # define EC_F_EC_POINT_CMP                                113
