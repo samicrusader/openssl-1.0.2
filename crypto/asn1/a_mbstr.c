@@ -59,6 +59,7 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <limits.h>
 #include "cryptlib.h"
 #include <openssl/asn1.h>
 
@@ -72,7 +73,289 @@ static int cpy_asc(unsigned long value, void *arg);
 static int cpy_bmp(unsigned long value, void *arg);
 static int cpy_univ(unsigned long value, void *arg);
 static int cpy_utf8(unsigned long value, void *arg);
-static int is_printable(unsigned long value);
+
+typedef enum {
+    SURROGATE_MIN = 0xd800UL,
+    SURROGATE_MAX = 0xdfffUL,
+    UNICODE_MAX = 0x10ffffUL,
+    UNICODE_LIMIT
+} UNICODE_CONSTANTS;
+
+static int is_unicode_surrogate(unsigned long value)
+{
+    return value >= SURROGATE_MIN && value <= SURROGATE_MAX;
+}
+
+static int is_unicode_valid(unsigned long value)
+{
+    return value <= UNICODE_MAX && !is_unicode_surrogate(value);
+}
+
+#ifdef CHARSET_EBCDIC
+static int ossl_toascii(int c)
+{
+    if (c < -128 || c > 256 || c == EOF)
+        return c;
+    /*
+     * Adjust negatively signed characters.
+     * This is not required for ASCII because any character that sign extends
+     * is not seven bit and all of the checks are on the seven bit characters.
+     * I.e. any check must fail on sign extension.
+     */
+    if (c < 0)
+        c += 256;
+    return os_toascii[c];
+}
+
+static int ossl_fromascii(int c)
+{
+    if (c < -128 || c > 256 || c == EOF)
+        return c;
+    if (c < 0)
+        c += 256;
+    return os_toebcdic[c];
+}
+
+#else
+#define ossl_fromascii(c) (c)
+#define ossl_toascii(c) (c)
+#endif
+
+#define ASCII_IS_DIGIT(c) (c >= 0x30 && c <= 0x39)
+static int ossl_isdigit(int c)
+{
+    int a = ossl_toascii(c);
+
+    return ASCII_IS_DIGIT(a);
+}
+
+#define CTYPE_MASK_lower 0x1
+#define CTYPE_MASK_upper 0x2
+#define CTYPE_MASK_digit 0x4
+#define CTYPE_MASK_space 0x8
+#define CTYPE_MASK_xdigit 0x10
+#define CTYPE_MASK_blank 0x20
+#define CTYPE_MASK_cntrl 0x40
+#define CTYPE_MASK_graph 0x80
+#define CTYPE_MASK_print 0x100
+#define CTYPE_MASK_punct 0x200
+#define CTYPE_MASK_base64 0x400
+#define CTYPE_MASK_asn1print 0x800
+
+static const unsigned short ctype_char_map[128] = {
+    /* 00 nul */ CTYPE_MASK_cntrl,
+    /* 01 soh */ CTYPE_MASK_cntrl,
+    /* 02 stx */ CTYPE_MASK_cntrl,
+    /* 03 etx */ CTYPE_MASK_cntrl,
+    /* 04 eot */ CTYPE_MASK_cntrl,
+    /* 05 enq */ CTYPE_MASK_cntrl,
+    /* 06 ack */ CTYPE_MASK_cntrl,
+    /* 07 \a  */ CTYPE_MASK_cntrl,
+    /* 08 \b  */ CTYPE_MASK_cntrl,
+    /* 09 \t  */ CTYPE_MASK_blank | CTYPE_MASK_cntrl | CTYPE_MASK_space,
+    /* 0A \n  */ CTYPE_MASK_cntrl | CTYPE_MASK_space,
+    /* 0B \v  */ CTYPE_MASK_cntrl | CTYPE_MASK_space,
+    /* 0C \f  */ CTYPE_MASK_cntrl | CTYPE_MASK_space,
+    /* 0D \r  */ CTYPE_MASK_cntrl | CTYPE_MASK_space,
+    /* 0E so  */ CTYPE_MASK_cntrl,
+    /* 0F si  */ CTYPE_MASK_cntrl,
+    /* 10 dle */ CTYPE_MASK_cntrl,
+    /* 11 dc1 */ CTYPE_MASK_cntrl,
+    /* 12 dc2 */ CTYPE_MASK_cntrl,
+    /* 13 dc3 */ CTYPE_MASK_cntrl,
+    /* 14 dc4 */ CTYPE_MASK_cntrl,
+    /* 15 nak */ CTYPE_MASK_cntrl,
+    /* 16 syn */ CTYPE_MASK_cntrl,
+    /* 17 etb */ CTYPE_MASK_cntrl,
+    /* 18 can */ CTYPE_MASK_cntrl,
+    /* 19 em  */ CTYPE_MASK_cntrl,
+    /* 1A sub */ CTYPE_MASK_cntrl,
+    /* 1B esc */ CTYPE_MASK_cntrl,
+    /* 1C fs  */ CTYPE_MASK_cntrl,
+    /* 1D gs  */ CTYPE_MASK_cntrl,
+    /* 1E rs  */ CTYPE_MASK_cntrl,
+    /* 1F us  */ CTYPE_MASK_cntrl,
+    /* 20     */ CTYPE_MASK_blank | CTYPE_MASK_print | CTYPE_MASK_space
+        | CTYPE_MASK_asn1print,
+    /* 21  !  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 22  "  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 23  #  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 24  $  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 25  %  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 26  &  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 27  '  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 28  (  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 29  )  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 2A  *  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 2B  +  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 2C  ,  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 2D  -  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 2E  .  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 2F  /  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 30  0  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 31  1  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 32  2  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 33  3  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 34  4  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 35  5  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 36  6  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 37  7  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 38  8  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 39  9  */ CTYPE_MASK_digit | CTYPE_MASK_graph | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 3A  :  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 3B  ;  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 3C  <  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 3D  =  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 3E  >  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 3F  ?  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct
+        | CTYPE_MASK_asn1print,
+    /* 40  @  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 41  A  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 42  B  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 43  C  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 44  D  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 45  E  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 46  F  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 47  G  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 48  H  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 49  I  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4A  J  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4B  K  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4C  L  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4D  M  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4E  N  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 4F  O  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 50  P  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 51  Q  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 52  R  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 53  S  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 54  T  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 55  U  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 56  V  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 57  W  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 58  X  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 59  Y  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 5A  Z  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_upper
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 5B  [  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 5C  \  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 5D  ]  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 5E  ^  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 5F  _  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 60  `  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 61  a  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 62  b  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 63  c  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 64  d  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 65  e  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 66  f  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_xdigit | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 67  g  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 68  h  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 69  i  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6A  j  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6B  k  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6C  l  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6D  m  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6E  n  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 6F  o  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 70  p  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 71  q  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 72  r  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 73  s  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 74  t  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 75  u  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 76  v  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 77  w  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 78  x  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 79  y  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 7A  z  */ CTYPE_MASK_graph | CTYPE_MASK_lower | CTYPE_MASK_print
+        | CTYPE_MASK_base64 | CTYPE_MASK_asn1print,
+    /* 7B  {  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 7C  |  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 7D  }  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 7E  ~  */ CTYPE_MASK_graph | CTYPE_MASK_print | CTYPE_MASK_punct,
+    /* 7F del */ CTYPE_MASK_cntrl
+};
+
+static int ossl_ctype_check(int c, unsigned int mask)
+{
+    const int max = sizeof(ctype_char_map) / sizeof(*ctype_char_map);
+    const int a = ossl_toascii(c);
+
+    return a >= 0 && a < max && (ctype_char_map[a] & mask) != 0;
+}
+
+#define ossl_isasn1print(c) (ossl_ctype_check((c), CTYPE_MASK_asn1print))
 
 /*
  * These functions take a string in UTF8, ASCII or multibyte form and a mask
@@ -233,7 +516,11 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
 
     case MBSTRING_UTF8:
         outlen = 0;
-        traverse_string(in, len, inform, out_utf8, &outlen);
+        ret = traverse_string(in, len, inform, out_utf8, &outlen);
+        if (ret < 0) {
+            ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY, ASN1_R_INVALID_UTF8STRING);
+            return -1;
+        }
         cpyfunc = cpy_utf8;
         break;
     }
@@ -298,6 +585,9 @@ static int traverse_string(const unsigned char *p, int len, int inform,
 static int in_utf8(unsigned long value, void *arg)
 {
     int *nchar;
+
+    if (!is_unicode_valid(value))
+        return -2;
     nchar = arg;
     (*nchar)++;
     return 1;
@@ -307,9 +597,12 @@ static int in_utf8(unsigned long value, void *arg)
 
 static int out_utf8(unsigned long value, void *arg)
 {
-    int *outlen;
+    int *outlen, len;
+    len = UTF8_putc(NULL, -1, value);
+    if (len <= 0)
+        return len;
     outlen = arg;
-    *outlen += UTF8_putc(NULL, -1, value);
+    *outlen += len;
     return 1;
 }
 
@@ -320,9 +613,32 @@ static int out_utf8(unsigned long value, void *arg)
 
 static int type_str(unsigned long value, void *arg)
 {
-    unsigned long types;
-    types = *((unsigned long *)arg);
-    if ((types & B_ASN1_PRINTABLESTRING) && !is_printable(value))
+    unsigned long usable_types = *((unsigned long *)arg);
+    unsigned long types = usable_types;
+    const int native = value > INT_MAX ? INT_MAX : ossl_fromascii(value);
+
+    /*
+     * Clear out all the types which are not checked later. If any of those
+     * is present in the mask, then the UTF8 type will be added and checked
+     * below.
+     */
+    types &= B_ASN1_NUMERICSTRING | B_ASN1_PRINTABLESTRING
+        | B_ASN1_IA5STRING | B_ASN1_T61STRING | B_ASN1_BMPSTRING
+        | B_ASN1_UNIVERSALSTRING | B_ASN1_UTF8STRING;
+
+    /*
+     * If any other types were in the input mask, they're effectively treated
+     * as UTF8
+     */
+    if (types != usable_types)
+        types |= B_ASN1_UTF8STRING;
+
+    /*
+     * These checks should be in sync with ASN1_mbstring_ncopy.
+     */
+    if ((types & B_ASN1_NUMERICSTRING) && !(ossl_isdigit(native) || native == ' '))
+        types &= ~B_ASN1_NUMERICSTRING;
+    if ((types & B_ASN1_PRINTABLESTRING) && !ossl_isasn1print(native))
         types &= ~B_ASN1_PRINTABLESTRING;
     if ((types & B_ASN1_IA5STRING) && (value > 127))
         types &= ~B_ASN1_IA5STRING;
@@ -330,6 +646,8 @@ static int type_str(unsigned long value, void *arg)
         types &= ~B_ASN1_T61STRING;
     if ((types & B_ASN1_BMPSTRING) && (value > 0xffff))
         types &= ~B_ASN1_BMPSTRING;
+    if ((types & B_ASN1_UTF8STRING) && !is_unicode_valid(value))
+        types &= ~B_ASN1_UTF8STRING;
     if (!types)
         return -1;
     *((unsigned long *)arg) = types;
@@ -385,39 +703,8 @@ static int cpy_utf8(unsigned long value, void *arg)
     p = arg;
     /* We already know there is enough room so pass 0xff as the length */
     ret = UTF8_putc(*p, 0xff, value);
+    if (ret < 0)
+        return ret;
     *p += ret;
     return 1;
-}
-
-/* Return 1 if the character is permitted in a PrintableString */
-static int is_printable(unsigned long value)
-{
-    int ch;
-    if (value > 0x7f)
-        return 0;
-    ch = (int)value;
-    /*
-     * Note: we can't use 'isalnum' because certain accented characters may
-     * count as alphanumeric in some environments.
-     */
-#ifndef CHARSET_EBCDIC
-    if ((ch >= 'a') && (ch <= 'z'))
-        return 1;
-    if ((ch >= 'A') && (ch <= 'Z'))
-        return 1;
-    if ((ch >= '0') && (ch <= '9'))
-        return 1;
-    if ((ch == ' ') || strchr("'()+,-./:=?", ch))
-        return 1;
-#else                           /* CHARSET_EBCDIC */
-    if ((ch >= os_toascii['a']) && (ch <= os_toascii['z']))
-        return 1;
-    if ((ch >= os_toascii['A']) && (ch <= os_toascii['Z']))
-        return 1;
-    if ((ch >= os_toascii['0']) && (ch <= os_toascii['9']))
-        return 1;
-    if ((ch == os_toascii[' ']) || strchr("'()+,-./:=?", os_toebcdic[ch]))
-        return 1;
-#endif                          /* CHARSET_EBCDIC */
-    return 0;
 }
