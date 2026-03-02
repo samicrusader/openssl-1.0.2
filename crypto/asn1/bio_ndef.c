@@ -59,6 +59,7 @@
 #include <openssl/err.h>
 
 #include <stdio.h>
+#include <string.h>
 
 /* Experimental NDEF ASN1 BIO support routines */
 
@@ -114,6 +115,7 @@ BIO *BIO_new_NDEF(BIO *out, ASN1_VALUE *val, const ASN1_ITEM *it)
         return NULL;
     }
     ndef_aux = OPENSSL_malloc(sizeof(NDEF_SUPPORT));
+    memset(ndef_aux, 0, sizeof(NDEF_SUPPORT));
     asn_bio = BIO_new(BIO_f_asn1());
 
     /* ASN1 bio needs to be next to output BIO */
@@ -213,8 +215,10 @@ static int ndef_prefix_free(BIO *b, unsigned char **pbuf, int *plen,
 
     ndef_aux = *(NDEF_SUPPORT **)parg;
 
-    if (ndef_aux->derbuf)
-        OPENSSL_free(ndef_aux->derbuf);
+    if (ndef_aux == NULL)
+        return 0;
+
+    OPENSSL_free(ndef_aux->derbuf);
 
     ndef_aux->derbuf = NULL;
     *pbuf = NULL;
