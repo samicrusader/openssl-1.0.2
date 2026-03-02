@@ -5,6 +5,16 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zm and OpenSSL 1.0.2zn [27 Jan 2026]
+
+      o Fixed Heap out-of-bounds write in BIO_f_linebuffer on short writes.
+        (CVE-2025-68160)
+      o Fixed NULL Pointer Dereference in PKCS12_item_decrypt_d2i_ex() function.
+        (CVE-2025-69421)
+      o Fixed ASN1_TYPE Type Confusion in the PKCS7_digest_from_attributes()
+        function.
+        (CVE-2026-22796)
+
   Major changes between OpenSSL 1.0.2zl and OpenSSL 1.0.2zm [30 Sep 2025]
 
       o Fix Out-of-bounds read & write in RFC 3211 KEK Unwrap.
