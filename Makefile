@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=1.0.2-beta1
+VERSION=1.0.2-beta2
 MAJOR=1
 MINOR=0.2
 SHLIB_VERSION_NUMBER=1.0.0
@@ -13,7 +13,7 @@ SHLIB_MAJOR=1
 SHLIB_MINOR=0.0
 SHLIB_EXT=
 PLATFORM=dist
-OPTIONS= no-dane no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-libunbound no-md2 no-multiblock no-rc5 no-rfc3779 no-sctp no-shared no-ssl-trace no-store no-zlib no-zlib-dynamic static-engine
+OPTIONS= no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-libunbound no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-ssl-trace no-store no-zlib no-zlib-dynamic static-engine
 CONFIGURE_ARGS=dist
 SHLIB_TARGET=
 
@@ -61,7 +61,7 @@ OPENSSLDIR=/usr/local/ssl
 
 CC= cc
 CFLAG= -O
-DEPFLAG= -DOPENSSL_NO_DANE -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_MULTIBLOCK -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE
+DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE
 PEX_LIBS= 
 EX_LIBS= 
 EXE_EXT= 
@@ -304,8 +304,8 @@ libcrypto$(SHLIB_EXT): libcrypto.a fips_premain_dso$(EXE_EXT)
 			FIPSLD_CC="$(CC)"; CC=$(FIPSDIR)/bin/fipsld; \
 			export CC FIPSLD_CC FIPSLD_LIBCRYPTO; \
 		fi; \
-		$(MAKE) -e SHLIBDIRS=crypto  CC="$${CC:-$(CC)}" build-shared; \
-		touch -c fips_premain_dso$(EXE_EXT); \
+		$(MAKE) -e SHLIBDIRS=crypto  CC="$${CC:-$(CC)}" build-shared && \
+		(touch -c fips_premain_dso$(EXE_EXT) || :); \
 	else \
 		echo "There's no support for shared libraries on this platform" >&2; \
 		exit 1; \
@@ -377,11 +377,11 @@ libssl.pc: Makefile
 	    echo 'libdir=$${exec_prefix}/$(LIBDIR)'; \
 	    echo 'includedir=$${prefix}/include'; \
 	    echo ''; \
-	    echo 'Name: OpenSSL'; \
+	    echo 'Name: OpenSSL-libssl'; \
 	    echo 'Description: Secure Sockets Layer and cryptography libraries'; \
 	    echo 'Version: '$(VERSION); \
-	    echo 'Requires: '; \
-	    echo 'Libs: -L$${libdir} -lssl -lcrypto'; \
+	    echo 'Requires.private: libcrypto'; \
+	    echo 'Libs: -L$${libdir} -lssl'; \
 	    echo 'Libs.private: $(EX_LIBS)'; \
 	    echo 'Cflags: -I$${includedir} $(KRB5_INCLUDES)' ) > libssl.pc
 
@@ -394,10 +394,7 @@ openssl.pc: Makefile
 	    echo 'Name: OpenSSL'; \
 	    echo 'Description: Secure Sockets Layer and cryptography libraries and tools'; \
 	    echo 'Version: '$(VERSION); \
-	    echo 'Requires: '; \
-	    echo 'Libs: -L$${libdir} -lssl -lcrypto'; \
-	    echo 'Libs.private: $(EX_LIBS)'; \
-	    echo 'Cflags: -I$${includedir} $(KRB5_INCLUDES)' ) > openssl.pc
+	    echo 'Requires: libssl libcrypto' ) > openssl.pc
 
 Makefile: Makefile.org Configure config
 	@echo "Makefile is older than Makefile.org, Configure or config."
@@ -573,17 +570,17 @@ install_sw:
 		do \
 			if [ -f "$$i" -o -f "$$i.a" ]; then \
 			(       echo installing $$i; \
-				if ! expr "$(PLATFORM)" : "Cygwin" >/dev/null; then \
-					cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
-					chmod 555 $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
-					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i; \
-				else \
+				if expr "$(PLATFORM)" : "Cygwin" >/dev/null; then \
 					c=`echo $$i | sed 's/^lib\(.*\)\.dll\.a/cyg\1-$(SHLIB_VERSION_NUMBER).dll/'`; \
 					cp $$c $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c.new; \
 					chmod 755 $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c.new; \
 					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c.new $(INSTALL_PREFIX)$(INSTALLTOP)/bin/$$c; \
 					cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
 					chmod 644 $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
+					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i; \
+				else \
+					cp $$i $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
+					chmod 555 $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new; \
 					mv -f $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i.new $(INSTALL_PREFIX)$(INSTALLTOP)/$(LIBDIR)/$$i; \
 				fi ); \
 				if expr $(PLATFORM) : 'mingw' > /dev/null; then \

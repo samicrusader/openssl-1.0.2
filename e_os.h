@@ -310,7 +310,7 @@ static unsigned int _strlen31(const char *str)
 #      undef isxdigit
 #    endif
 #    if defined(_MSC_VER) && !defined(_WIN32_WCE) && !defined(_DLL) && defined(stdin)
-#      if _MSC_VER>=1300
+#      if _MSC_VER>=1300 && _MSC_VER<1600
 #        undef stdin
 #        undef stdout
 #        undef stderr
@@ -318,7 +318,7 @@ static unsigned int _strlen31(const char *str)
 #        define stdin  (&__iob_func()[0])
 #        define stdout (&__iob_func()[1])
 #        define stderr (&__iob_func()[2])
-#      elif defined(I_CAN_LIVE_WITH_LNK4049)
+#      elif _MSC_VER<1300 && defined(I_CAN_LIVE_WITH_LNK4049)
 #        undef stdin
 #        undef stdout
 #        undef stderr
@@ -370,6 +370,13 @@ static unsigned int _strlen31(const char *str)
 #  else
 #    define DEFAULT_HOME  "C:"
 #  endif
+
+/* Avoid Windows 8 SDK GetVersion deprecated problems */
+#if defined(_MSC_VER) && _MSC_VER>=1800
+#  define check_winnt() (1)
+#else
+#  define check_winnt() (GetVersion() < 0x80000000)
+#endif 
 
 #else /* The non-microsoft world */
 

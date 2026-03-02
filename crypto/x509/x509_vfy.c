@@ -366,8 +366,11 @@ int X509_verify_cert(X509_STORE_CTX *ctx)
 	/* If explicitly rejected error */
 	if (i == X509_TRUST_REJECTED)
 		goto end;
-	/* If not explicitly trusted then indicate error */
-	if (i != X509_TRUST_TRUSTED)
+	/* If not explicitly trusted then indicate error unless it's
+	 * a single self signed certificate in which case we've indicated
+	 * an error already and set bad_chain == 1
+	 */
+	if (i != X509_TRUST_TRUSTED && !bad_chain)
 		{
 		if ((chain_ss == NULL) || !ctx->check_issued(ctx, x, chain_ss))
 			{
@@ -716,22 +719,38 @@ static int check_id_error(X509_STORE_CTX *ctx, int errcode)
 	return ctx->verify_cb(0, ctx);
 	}
 
+static int check_hosts(X509 *x, X509_VERIFY_PARAM_ID *id)
+	{
+	int i;
+	int n = sk_OPENSSL_STRING_num(id->hosts);
+	char *name;
+
+	for (i = 0; i < n; ++i)
+		{
+		name = sk_OPENSSL_STRING_value(id->hosts, i);
+		if (X509_check_host(x, name, 0, id->hostflags,
+				    &id->peername) > 0)
+			return 1;
+		}
+	return n == 0;
+	}
+
 static int check_id(X509_STORE_CTX *ctx)
 	{
 	X509_VERIFY_PARAM *vpm = ctx->param;
 	X509_VERIFY_PARAM_ID *id = vpm->id;
 	X509 *x = ctx->cert;
-	if (id->host && !X509_check_host(x, id->host, id->hostlen, 0))
+	if (id->hosts && check_hosts(x, id) <= 0)
 		{
 		if (!check_id_error(ctx, X509_V_ERR_HOSTNAME_MISMATCH))
 			return 0;
 		}
-	if (id->email && !X509_check_email(x, id->email, id->emaillen, 0))
+	if (id->email && X509_check_email(x, id->email, id->emaillen, 0) <= 0)
 		{
 		if (!check_id_error(ctx, X509_V_ERR_EMAIL_MISMATCH))
 			return 0;
 		}
-	if (id->ip && !X509_check_ip(x, id->ip, id->iplen, 0))
+	if (id->ip && X509_check_ip(x, id->ip, id->iplen, 0) <= 0)
 		{
 		if (!check_id_error(ctx, X509_V_ERR_IP_ADDRESS_MISMATCH))
 			return 0;

@@ -392,6 +392,8 @@ int chopup_args(ARGS *arg, char *buf, int *argc, char **argv[])
 		{
 		arg->count=20;
 		arg->data=(char **)OPENSSL_malloc(sizeof(char *)*arg->count);
+		if (arg->data == NULL)
+			return 0;
 		}
 	for (i=0; i<arg->count; i++)
 		arg->data[i]=NULL;
@@ -588,12 +590,12 @@ int password_callback(char *buf, int bufsiz, int verify,
 
 		if (ok >= 0)
 			ok = UI_add_input_string(ui,prompt,ui_flags,buf,
-				PW_MIN_LENGTH,BUFSIZ-1);
+				PW_MIN_LENGTH,bufsiz-1);
 		if (ok >= 0 && verify)
 			{
 			buff = (char *)OPENSSL_malloc(bufsiz);
 			ok = UI_add_verify_string(ui,prompt,ui_flags,buff,
-				PW_MIN_LENGTH,BUFSIZ-1, buf);
+				PW_MIN_LENGTH,bufsiz-1, buf);
 			}
 		if (ok >= 0)
 			do
@@ -1661,6 +1663,8 @@ char *make_config_name()
 
 	len=strlen(t)+strlen(OPENSSL_CONF)+2;
 	p=OPENSSL_malloc(len);
+	if (p == NULL)
+		return NULL;
 	BUF_strlcpy(p,t,len);
 #ifndef OPENSSL_SYS_VMS
 	BUF_strlcat(p,"/",len);
@@ -2381,7 +2385,8 @@ int args_verify(char ***pargs, int *pargc,
 	char **oldargs = *pargs;
 	char *arg = **pargs, *argn = (*pargs)[1];
 	time_t at_time = 0;
-	const unsigned char *hostname = NULL, *email = NULL;
+	char *hostname = NULL;
+	char *email = NULL;
 	char *ipasc = NULL;
 	if (!strcmp(arg, "-policy"))
 		{
@@ -2460,14 +2465,14 @@ int args_verify(char ***pargs, int *pargc,
 		{
 		if (!argn)
 			*badarg = 1;
-		hostname = (unsigned char *)argn;
+		hostname = argn;
 		(*pargs)++;
 		}
 	else if (strcmp(arg,"-verify_email") == 0)
 		{
 		if (!argn)
 			*badarg = 1;
-		email = (unsigned char *)argn;
+		email = argn;
 		(*pargs)++;
 		}
 	else if (strcmp(arg,"-verify_ip") == 0)
@@ -2935,8 +2940,8 @@ unsigned char *next_protos_parse(unsigned short *outlen, const char *in)
 #endif  /* ndef OPENSSL_NO_TLSEXT */
 
 void print_cert_checks(BIO *bio, X509 *x,
-				const unsigned char *checkhost,
-				const unsigned char *checkemail,
+				const char *checkhost,
+				const char *checkemail,
 				const char *checkip)
 	{
 	if (x == NULL)
@@ -2944,7 +2949,8 @@ void print_cert_checks(BIO *bio, X509 *x,
 	if (checkhost)
 		{
 		BIO_printf(bio, "Hostname %s does%s match certificate\n",
-				checkhost, X509_check_host(x, checkhost, 0, 0)
+				checkhost,
+				X509_check_host(x, checkhost, 0, 0, NULL)
 						? "" : " NOT");
 		}
 
@@ -3114,7 +3120,7 @@ double app_tminterval(int stop,int usertime)
 
 	if (proc==NULL)
 		{
-		if (GetVersion() < 0x80000000)
+		if (check_winnt())
 			proc = OpenProcess(PROCESS_QUERY_INFORMATION,FALSE,
 						GetCurrentProcessId());
 		if (proc==NULL) proc = (HANDLE)-1;

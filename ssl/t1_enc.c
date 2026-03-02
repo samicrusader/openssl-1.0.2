@@ -1009,7 +1009,8 @@ int tls1_mac(SSL *ssl, unsigned char *md, int send)
 		}
 		else
 		{
-			EVP_MD_CTX_copy(&hmac,hash);
+			if (!EVP_MD_CTX_copy(&hmac,hash))
+				return -1;
 			mac_ctx = &hmac;
 		}
 
@@ -1172,7 +1173,7 @@ int tls1_export_keying_material(SSL *s, unsigned char *out, size_t olen,
 	int rv;
 
 #ifdef KSSL_DEBUG
-	printf ("tls1_export_keying_material(%p,%p,%d,%s,%d,%p,%d)\n", s, out, olen, label, llen, p, plen);
+	printf ("tls1_export_keying_material(%p,%p,%d,%s,%d,%p,%d)\n", s, out, olen, label, llen, context, contextlen);
 #endif	/* KSSL_DEBUG */
 
 	buff = OPENSSL_malloc(olen);
@@ -1225,7 +1226,7 @@ int tls1_export_keying_material(SSL *s, unsigned char *out, size_t olen,
 	if (memcmp(val, TLS_MD_KEY_EXPANSION_CONST,
 		 TLS_MD_KEY_EXPANSION_CONST_SIZE) == 0) goto err1;
 
-	rv = tls1_PRF(s->s3->tmp.new_cipher->algorithm2,
+	rv = tls1_PRF(ssl_get_algorithm2(s),
 		      val, vallen,
 		      NULL, 0,
 		      NULL, 0,

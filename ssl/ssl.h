@@ -264,6 +264,7 @@ extern "C" {
 #define SSL_TXT_aGOST94	"aGOST94"
 #define SSL_TXT_aGOST01 "aGOST01"
 #define SSL_TXT_aGOST  "aGOST"
+#define SSL_TXT_aSRP            "aSRP"
 
 #define	SSL_TXT_DSS		"DSS"
 #define SSL_TXT_DH		"DH"
@@ -433,57 +434,6 @@ typedef struct {
 	custom_srv_ext_second_cb_fn fn2; 
 	void *arg;
 } custom_srv_ext_record;
-
-/* Callbacks and structures for handling Supplemental Data:
- *   srv_supp_data_first_cb_fn  - server sends Supplemental Data
- *   srv_supp_data_second_cb_fn - server receives Supplemental Data
- *   cli_supp_data_first_cb_fn  - client receives Supplemental Data
- *   cli_supp_data_second_cb_fn - client sends Supplemental Data
- *
- *   All these functions return nonzero on success.  Zero will terminate
- *   the handshake (and return a specific TLS Fatal alert, if the function
- *   declaration has an "al" parameter).  -1 for the "sending" functions
- *   will result in no supplemental data entry being added to the
- *   supplemental data message for the provided supplemental data type.
- *
- *   "supp_data_type" is a Supplemental Data Type from 0-65535.
- *   "in" is a pointer to TLS "supplemental_data_entry" being provided to the cb.
- *   "out" is used by the callback to return a pointer to "supplemental data"
- *     which OpenSSL will later copy into the TLS handshake.  The contents
- *     of this buffer should not be changed until the handshake is complete.
- *   "inlen" and "outlen" are Supplemental Data lengths from 0-65535.
- *   "al" is a TLS "AlertDescription" from 0-255 which WILL be sent as a
- *     fatal TLS alert, if the callback returns zero.
- */
-typedef int (*srv_supp_data_first_cb_fn)(SSL *s, unsigned short supp_data_type,
-					 const unsigned char **out,
-					 unsigned short *outlen, int *al, void *arg);
-typedef int (*srv_supp_data_second_cb_fn)(SSL *s, unsigned short supp_data_type,
-					  const unsigned char *in,
-					  unsigned short inlen, int *al,
-					  void *arg);
-
-typedef int (*cli_supp_data_first_cb_fn)(SSL *s, unsigned short supp_data_type,
-					 const unsigned char *in,
-					 unsigned short inlen, int *al,
-					 void *arg);
-typedef int (*cli_supp_data_second_cb_fn)(SSL *s, unsigned short supp_data_type,
-					  const unsigned char **out,
-					  unsigned short *outlen, int *al, void *arg);
-
-typedef struct {
-	unsigned short supp_data_type;
-	srv_supp_data_first_cb_fn fn1;
-	srv_supp_data_second_cb_fn fn2;
-	void *arg;
-} srv_supp_data_record;
-
-typedef struct {
-	unsigned short supp_data_type;
-	cli_supp_data_first_cb_fn fn1;
-	cli_supp_data_second_cb_fn fn2;
-	void *arg;
-} cli_supp_data_record;
 
 #endif
 
@@ -658,7 +608,7 @@ struct ssl_session_st
 /* Allow initial connection to servers that don't support RI */
 #define SSL_OP_LEGACY_SERVER_CONNECT			0x00000004L
 #define SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG		0x00000008L
-#define SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG		0x00000010L
+#define SSL_OP_TLSEXT_PADDING				0x00000010L
 #define SSL_OP_MICROSOFT_BIG_SSLV3_BUFFER		0x00000020L
 #define SSL_OP_SAFARI_ECDHE_ECDSA_BUG			0x00000040L
 #define SSL_OP_SSLEAY_080_CLIENT_DH_BUG			0x00000080L
@@ -667,6 +617,8 @@ struct ssl_session_st
 
 /* Hasn't done anything since OpenSSL 0.9.7h, retained for compatibility */
 #define SSL_OP_MSIE_SSLV2_RSA_PADDING			0x0
+/* Refers to ancient SSLREF and SSLv2, retained for compatibility */
+#define SSL_OP_SSLREF2_REUSE_CERT_TYPE_BUG		0x0
 
 /* Disable SSL 3.0/TLS 1.0 CBC vulnerability workaround that was added
  * in OpenSSL 0.9.6d.  Usually (depending on the application protocol)
@@ -787,6 +739,8 @@ struct ssl_session_st
 #define SSL_BUILD_CHAIN_FLAG_CHECK		0x4
 /* Ignore verification errors */
 #define SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR	0x8
+/* Clear verification errors from queue */
+#define SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR	0x10
 
 /* Flags returned by SSL_check_chain */
 /* Certificate can be used with this session */
@@ -1095,7 +1049,7 @@ struct ssl_ctx_st
 	 */
 	unsigned int max_send_fragment;
 
-#ifndef OPENSSL_ENGINE
+#ifndef OPENSSL_NO_ENGINE
 	/* Engine to pass requests for client certs to
 	 */
 	ENGINE *client_cert_engine;
@@ -1205,12 +1159,6 @@ struct ssl_ctx_st
 	size_t custom_cli_ext_records_count;
 	custom_srv_ext_record *custom_srv_ext_records;
 	size_t custom_srv_ext_records_count;
-
- 	/* Arrays containing the callbacks for Supplemental Data. */
- 	cli_supp_data_record *cli_supp_data_records;
-	size_t cli_supp_data_records_count;
-	srv_supp_data_record *srv_supp_data_records;
-	size_t srv_supp_data_records_count;
 	};
 
 #endif
@@ -1357,30 +1305,6 @@ int SSL_CTX_set_custom_cli_ext(SSL_CTX *ctx, unsigned short ext_type,
 int SSL_CTX_set_custom_srv_ext(SSL_CTX *ctx, unsigned short ext_type,
 			       custom_srv_ext_first_cb_fn fn1, 
 			       custom_srv_ext_second_cb_fn fn2, void *arg);
-
-/* Register callbacks to handle Supplemental Data as client or server.
- *
- * For SSL_CTX_set_srv_supp_data, a NULL srv_supp_data_first_cb_fn results in no supplemental data
- * being sent by the server for that TLS extension.
- * A NULL srv_supp_data_second_cb_fn results in no supplemental data
- * being received by the server for that TLS extension.
- *
- * For SSL_CTX_set_cli_supp_data, a NULL cli_supp_data_first_cb_fn results in no supplemental data
- * being received by the client for that TLS extension.
- * A NULL cli_supp_data_second_cb_fn results in no supplemental data
- * being sent by the client for that TLS extension.
- *
- * Returns nonzero on success.  You cannot register twice for the same supp_data_type.
- */
-int SSL_CTX_set_srv_supp_data(SSL_CTX *ctx,
-			      unsigned short supp_data_type,
-			      srv_supp_data_first_cb_fn fn1,
-			      srv_supp_data_second_cb_fn fn2, void *arg);
-
-int SSL_CTX_set_cli_supp_data(SSL_CTX *ctx,
-			      unsigned short supp_data_type,
-			      cli_supp_data_first_cb_fn fn1,
-			      cli_supp_data_second_cb_fn fn2, void *arg);
 
 #endif
 
@@ -1936,9 +1860,6 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
 #define SSL_CTRL_GET_SERVER_TMP_KEY		109
 #define SSL_CTRL_GET_RAW_CIPHERLIST		110
 #define SSL_CTRL_GET_EC_POINT_FORMATS		111
-#define SSL_CTRL_GET_TLSA_RECORD		112
-#define SSL_CTRL_SET_TLSA_RECORD		113
-#define SSL_CTRL_PULL_TLSA_RECORD		114
 
 #define SSL_CTRL_GET_CHAIN_CERTS		115
 #define SSL_CTRL_SELECT_CURRENT_CERT		116
@@ -2102,11 +2023,6 @@ DECLARE_PEM_rw(SSL_SESSION, SSL_SESSION)
 
 #define SSL_get0_ec_point_formats(s, plst) \
 	SSL_ctrl(s,SSL_CTRL_GET_EC_POINT_FORMATS,0,(char *)plst)
-
-#define SSL_set_tlsa_record(s,tlsa) \
-	SSL_ctrl(s,SSL_CTRL_SET_TLSA_RECORD,0,(void *)tlsa)
-#define SSL_pull_tlsa_record(s,host,port) \
-	SSL_ctrl(s,SSL_CTRL_PULL_TLSA_RECORD,port,host)
 
 #ifndef OPENSSL_NO_BIO
 BIO_METHOD *BIO_f_ssl(void);
@@ -2510,6 +2426,7 @@ const COMP_METHOD *SSL_get_current_expansion(SSL *s);
 const char *SSL_COMP_get_name(const COMP_METHOD *comp);
 STACK_OF(SSL_COMP) *SSL_COMP_get_compression_methods(void);
 STACK_OF(SSL_COMP) *SSL_COMP_set0_compression_methods(STACK_OF(SSL_COMP) *meths);
+void SSL_COMP_free_compression_methods(void);
 int SSL_COMP_add_compression_method(int id,COMP_METHOD *cm);
 #else
 const void *SSL_get_current_compression(SSL *s);
@@ -2553,8 +2470,6 @@ void SSL_trace(int write_p, int version, int content_type,
 		const void *buf, size_t len, SSL *ssl, void *arg);
 const char *SSL_CIPHER_standard_name(const SSL_CIPHER *c);
 #endif
-
-unsigned char *SSL_get_tlsa_record_byname(const char *name,int port,int type);
 
 /* BEGIN ERROR CODES */
 /* The following lines are auto generated by the script mkerr.pl. Any changes
@@ -2788,14 +2703,10 @@ void ERR_load_SSL_strings(void);
 #define SSL_F_TLS1_CHECK_SERVERHELLO_TLSEXT		 274
 #define SSL_F_TLS1_ENC					 210
 #define SSL_F_TLS1_EXPORT_KEYING_MATERIAL		 314
-#define SSL_F_TLS1_GET_CLIENT_SUPPLEMENTAL_DATA		 338
-#define SSL_F_TLS1_GET_SERVER_SUPPLEMENTAL_DATA		 326
 #define SSL_F_TLS1_HEARTBEAT				 315
 #define SSL_F_TLS1_PREPARE_CLIENTHELLO_TLSEXT		 275
 #define SSL_F_TLS1_PREPARE_SERVERHELLO_TLSEXT		 276
 #define SSL_F_TLS1_PRF					 284
-#define SSL_F_TLS1_SEND_CLIENT_SUPPLEMENTAL_DATA	 339
-#define SSL_F_TLS1_SEND_SERVER_SUPPLEMENTAL_DATA	 327
 #define SSL_F_TLS1_SETUP_KEY_BLOCK			 211
 #define SSL_F_WRITE_PENDING				 212
 
@@ -3094,7 +3005,6 @@ void ERR_load_SSL_strings(void);
 #define SSL_R_UNKNOWN_REMOTE_ERROR_TYPE			 253
 #define SSL_R_UNKNOWN_SSL_VERSION			 254
 #define SSL_R_UNKNOWN_STATE				 255
-#define SSL_R_UNKNOWN_SUPPLEMENTAL_DATA_TYPE		 373
 #define SSL_R_UNSAFE_LEGACY_RENEGOTIATION_DISABLED	 338
 #define SSL_R_UNSUPPORTED_CIPHER			 256
 #define SSL_R_UNSUPPORTED_COMPRESSION_ALGORITHM		 257

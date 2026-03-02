@@ -5,9 +5,6 @@
 #ifndef OPENSSL_DOING_MAKEDEPEND
 
 
-#ifndef OPENSSL_NO_DANE
-# define OPENSSL_NO_DANE
-#endif
 #ifndef OPENSSL_NO_EC_NISTP_64_GCC_128
 # define OPENSSL_NO_EC_NISTP_64_GCC_128
 #endif
@@ -25,9 +22,6 @@
 #endif
 #ifndef OPENSSL_NO_MD2
 # define OPENSSL_NO_MD2
-#endif
-#ifndef OPENSSL_NO_MULTIBLOCK
-# define OPENSSL_NO_MULTIBLOCK
 #endif
 #ifndef OPENSSL_NO_RC5
 # define OPENSSL_NO_RC5
@@ -56,9 +50,6 @@
    who haven't had the time to do the appropriate changes in their
    applications.  */
 #ifdef OPENSSL_ALGORITHM_DEFINES
-# if defined(OPENSSL_NO_DANE) && !defined(NO_DANE)
-#  define NO_DANE
-# endif
 # if defined(OPENSSL_NO_EC_NISTP_64_GCC_128) && !defined(NO_EC_NISTP_64_GCC_128)
 #  define NO_EC_NISTP_64_GCC_128
 # endif
@@ -76,9 +67,6 @@
 # endif
 # if defined(OPENSSL_NO_MD2) && !defined(NO_MD2)
 #  define NO_MD2
-# endif
-# if defined(OPENSSL_NO_MULTIBLOCK) && !defined(NO_MULTIBLOCK)
-#  define NO_MULTIBLOCK
 # endif
 # if defined(OPENSSL_NO_RC5) && !defined(NO_RC5)
 #  define NO_RC5

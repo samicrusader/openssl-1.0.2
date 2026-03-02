@@ -3511,6 +3511,7 @@ BIO_set_callback                        3903	EXIST::FUNCTION:
 d2i_ASIdOrRange                         3904	EXIST::FUNCTION:RFC3779
 i2d_ASIdentifiers                       3905	EXIST::FUNCTION:RFC3779
 CRYPTO_memcmp                           3906	EXIST::FUNCTION:
+BN_consttime_swap                       3907	EXIST::FUNCTION:
 SEED_decrypt                            3908	EXIST::FUNCTION:SEED
 SEED_encrypt                            3909	EXIST::FUNCTION:SEED
 SEED_cbc_encrypt                        3910	EXIST::FUNCTION:SEED
@@ -4401,3 +4402,10 @@ X509_VERIFY_PARAM_get0_name             4761	EXIST::FUNCTION:
 X509_VERIFY_PARAM_get0                  4762	EXIST::FUNCTION:
 X509V3_EXT_free                         4763	EXIST::FUNCTION:
 BIO_hex_string                          4764	EXIST::FUNCTION:
+X509_VERIFY_PARAM_set_hostflags         4765	EXIST::FUNCTION:
+BUF_strnlen                             4766	EXIST::FUNCTION:
+X509_VERIFY_PARAM_get0_peername         4767	EXIST::FUNCTION:
+ECDSA_METHOD_set_app_data               4768	EXIST::FUNCTION:ECDSA
+sk_deep_copy                            4769	EXIST::FUNCTION:
+ECDSA_METHOD_get_app_data               4770	EXIST::FUNCTION:ECDSA
+X509_VERIFY_PARAM_add1_host             4771	EXIST::FUNCTION:

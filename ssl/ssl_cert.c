@@ -664,7 +664,7 @@ int ssl_cert_set_current(CERT *c, long op)
 		return 0;
 	for (i = idx; i < SSL_PKEY_NUM; i++)
 		{
-		CERT_PKEY *cpk = c->key + i;
+		CERT_PKEY *cpk = c->pkeys + i;
 		if (cpk->x509 && cpk->privatekey)
 			{
 			c->key = cpk;
@@ -756,237 +756,12 @@ int ssl_set_peer_cert_type(SESS_CERT *sc,int type)
 	return(1);
 	}
 
-#ifndef OPENSSL_NO_DANE
-static void tlsa_free(void *parent,void *ptr,CRYPTO_EX_DATA *ad,int idx,long argl,void *argp)
-	{
-	TLSA_EX_DATA *ex = ptr;
-
-	if (ex!=NULL)
-		{
-		if (ex->tlsa_record!=NULL && ex->tlsa_record!=(void *)-1)
-			OPENSSL_free(ex->tlsa_record);
-
-		OPENSSL_free(ex);
-		}
-	}
-
-int SSL_get_TLSA_ex_data_idx(void)
-    {
-    static volatile int ssl_tlsa_idx= -1;
-    int got_write_lock = 0;
-
-    if (((size_t)&ssl_tlsa_idx&(sizeof(ssl_tlsa_idx)-1))
-		==0)	/* check alignment, practically always true */
-	{
-	int ret;
-
-	if ((ret=ssl_tlsa_idx) < 0)
-		{
-		CRYPTO_w_lock(CRYPTO_LOCK_SSL_CTX);
-		if ((ret=ssl_tlsa_idx) < 0)
-			{
-			ret=ssl_tlsa_idx=SSL_get_ex_new_index(
-				0,"per-SSL TLSA",NULL,NULL,tlsa_free);
-			}
-		CRYPTO_w_unlock(CRYPTO_LOCK_SSL_CTX);
-		}
-
-	return ret;
-	}
-    else		/* commonly eliminated */
-	{
-	CRYPTO_r_lock(CRYPTO_LOCK_SSL_CTX);
-
-	if (ssl_tlsa_idx < 0)
-		{
-		CRYPTO_r_unlock(CRYPTO_LOCK_SSL_CTX);
-		CRYPTO_w_lock(CRYPTO_LOCK_SSL_CTX);
-		got_write_lock = 1;
-		
-		if (ssl_tlsa_idx < 0)
-			{
-			ssl_tlsa_idx=SSL_get_ex_new_index(
-				0,"pre-SSL TLSA",NULL,NULL,tlsa_free);
-			}
-		}
-
-	if (got_write_lock)
-		CRYPTO_w_unlock(CRYPTO_LOCK_SSL_CTX);
-	else
-		CRYPTO_r_unlock(CRYPTO_LOCK_SSL_CTX);
-	
-	return ssl_tlsa_idx;
-	}
-    }
-
-TLSA_EX_DATA *SSL_get_TLSA_ex_data(SSL *ssl)
-	{
-	int idx = SSL_get_TLSA_ex_data_idx();
-	TLSA_EX_DATA *ex;
-
-	if ((ex=SSL_get_ex_data(ssl,idx)) == NULL)
-		{
-		ex = OPENSSL_malloc(sizeof(TLSA_EX_DATA));
-		ex->tlsa_record = NULL;
-		ex->tlsa_witness = -1;
-		SSL_set_ex_data(ssl,idx,ex);
-		}
-
-	return ex;
-	}
-
-/*
- * return value:
- * -1:	format or digest error
- *  0:	match
- *  1:	no match
- */
-static int tlsa_cmp(const X509 *cert, const unsigned char *tlsa_record, unsigned int reclen)
-	{
-	const EVP_MD *md;
-	unsigned char digest[EVP_MAX_MD_SIZE];
-	unsigned int len, selector, matching_type;
-	int ret;
-
-	if (reclen<3 || tlsa_record[0]>3)	return -1;
-
-	selector      = tlsa_record[1];
-	matching_type = tlsa_record[2];
-	tlsa_record   += 3;
-	reclen        -= 3;
-
-	switch (matching_type) {
-	case 0:				/* exact match */
-		if (selector==0) {	/* full certificate */
-			ret = EVP_Digest(tlsa_record,reclen,digest,&len,EVP_sha1(),NULL);
-			return ret ? memcmp(cert->sha1_hash,digest,len)!=0 : -1;
-		}
-		else if (selector==1) {	/* SubjectPublicKeyInfo */
-			ASN1_BIT_STRING *key = X509_get0_pubkey_bitstr(cert);
-
-			if (key == NULL) return -1;
-			if (key->length != reclen) return 1;
-
-			return memcmp(key->data,tlsa_record,reclen)!=0;
-		}
-		return -1;
-
-	case 1:				/* SHA256 */
-	case 2:				/* SHA512 */
-		md = matching_type==1 ? EVP_sha256() : EVP_sha512();
-
-		if (reclen!=EVP_MD_size(md)) return -1;
-
-		if (selector==0) {	/* full certificate */
-			ret = X509_digest(cert,md,digest,&len);
-		}
-		else if (selector==1) {	/* SubjectPublicKeyInfo */
-			ret = X509_pubkey_digest(cert,md,digest,&len);
-		}
-		else
-			return -1;
-
-		return ret ? memcmp(tlsa_record,digest,len)!=0 : -1;
-	default:
-		return -1;
-	}
-	}
-
-static int dane_verify_callback(int ok, X509_STORE_CTX *ctx)
-	{
-	SSL *s = X509_STORE_CTX_get_ex_data(ctx,SSL_get_ex_data_X509_STORE_CTX_idx());
-	int depth=X509_STORE_CTX_get_error_depth(ctx);
-	X509 *cert = sk_X509_value(ctx->chain,depth);
-	TLSA_EX_DATA *ex;
-	const unsigned char *tlsa_record;
-	int tlsa_ret=-1, mask=1;
-
-
-	if ((ex=SSL_get_ex_data(s, SSL_get_TLSA_ex_data_idx())) == NULL ||
-	    (tlsa_record=ex->tlsa_record) == NULL ||
-	    (tlsa_record==(void *)-1 && (ok=0,ctx->error=X509_V_ERR_INVALID_CA)) ||	/* temporary code? */
-	    /*
-	     * X509_verify_cert initially starts throwing ok=0 upon
-	     * failure to build certificate chain. As all certificate
-	     * usages except for 3 require verifiable chain, ok=0 at
-	     * non-zero depth is fatal. More specifically ok=0 at zero
-	     * depth is allowed only for usage 3. Special note about
-	     * usage 2. The chain is supposed to be filled by
-	     * dane_get_issuer, or once again we should tolerate ok=0
-	     * only in usage 3 case.
-	     */
-	    (!ok && depth!=0)) {
-		if (s->verify_callback)	return s->verify_callback(ok,ctx);
-		else			return ok;
-	}
-
-	while (1) {
-	    unsigned int reclen, certificate_usage;
-
-	    memcpy(&reclen,tlsa_record,sizeof(reclen));
-
-	    if (reclen==0) break;
-
-	    tlsa_record += sizeof(reclen);
-
-	    if (!(ex->tlsa_mask&mask))	{ /* not matched yet */
-		/*
-		 * tlsa_record[0]	Certificate Usage field
-		 * tlsa_record[1]	Selector field
-		 * tlsa_record[2]	Matching Type Field
-		 * tlsa_record+3	Certificate Association data
-		 */
-		certificate_usage = tlsa_record[0];
-
-		if (depth==0 || certificate_usage==0 || certificate_usage==2) {
-			tlsa_ret = tlsa_cmp(cert,tlsa_record,reclen);
-			if (tlsa_ret==0) {
-				ex->tlsa_witness = depth<<8|certificate_usage;
-				ex->tlsa_mask |= mask;
-				break;
-			}
-			else if (tlsa_ret==-1) {
-				ex->tlsa_witness = -1;	/* something phishy? */
-				ex->tlsa_mask |= mask;
-			}
-		}
-
-	    }
-	    tlsa_record += reclen;
-	    mask <<= 1;
-	}
-
-	if (depth==0) {
-		if (ex->tlsa_witness==-1)	/* no match */
-			ctx->error = X509_V_ERR_CERT_UNTRUSTED, ok=0;
-		else
-			ctx->error = X509_V_OK, ok=1;
-	}
-
-	if (s->verify_callback)	return s->verify_callback(ok,ctx);
-	else			return ok;
-	}
-
-static int dane_get_issuer(X509 **issuer,X509_STORE_CTX *ctx,X509 *x)
-	{
-	SSL *s = X509_STORE_CTX_get_ex_data(ctx,SSL_get_ex_data_X509_STORE_CTX_idx());
-	TLSA_EX_DATA *ex=SSL_get_ex_data(s, SSL_get_TLSA_ex_data_idx());
-
-	/* XXX TODO */
-
-	return ex->get_issuer(issuer,ctx,x);
-	}
-#endif
-
 int ssl_verify_cert_chain(SSL *s,STACK_OF(X509) *sk)
 	{
 	X509 *x;
 	int i;
 	X509_STORE *verify_store;
 	X509_STORE_CTX ctx;
-#ifndef OPENSSL_NO_DANE
-	TLSA_EX_DATA *ex;
-#endif
 
 	if (s->cert->verify_store)
 		verify_store = s->cert->verify_store;
@@ -1022,44 +797,6 @@ int ssl_verify_cert_chain(SSL *s,STACK_OF(X509) *sk)
 	 */
 	X509_VERIFY_PARAM_set1(X509_STORE_CTX_get0_param(&ctx), s->param);
 
-#ifndef OPENSSL_NO_DANE
-	if (!s->server &&
-	    (ex=SSL_get_ex_data(s, SSL_get_TLSA_ex_data_idx()))!=NULL)
-		{
-		const unsigned char *tlsa_record = ex->tlsa_record;
-
-		/*
-		 * See if there are usable certificates we can add
-		 * to chain.
-		 */
-		while (tlsa_record!=(void *)-1)
-			{
-			unsigned int reclen;
-
-			memcpy (&reclen,tlsa_record,sizeof(reclen));
-
-			if (reclen==0)	break;
-
-			tlsa_record += sizeof(reclen);
-
-			if (tlsa_record[0]==2 &&
-			    tlsa_record[1]==0 && /* full certificate */
-			    tlsa_record[2]==0)   /* itself */
-				{ 
-				ex->get_issuer = ctx.get_issuer;
-				ctx.get_issuer = dane_get_issuer;
-
-				break;
-				}
-			tlsa_record += reclen;
-			}
-
-		ex->tlsa_mask = 0;
-		ex->tlsa_witness = -1;
-		X509_STORE_CTX_set_verify_cb(&ctx, dane_verify_callback);
-		}
-	else
-#endif
 	if (s->verify_callback)
 		X509_STORE_CTX_set_verify_cb(&ctx, s->verify_callback);
 
@@ -1483,6 +1220,7 @@ int ssl_build_cert_chain(CERT *c, X509_STORE *chain_store, int flags)
 	STACK_OF(X509) *chain = NULL, *untrusted = NULL;
 	X509 *x;
 	int i, rv = 0;
+	unsigned long error;
 
 	if (!cpk->x509)
 		{
@@ -1499,11 +1237,23 @@ int ssl_build_cert_chain(CERT *c, X509_STORE *chain_store, int flags)
 			{
 			x = sk_X509_value(cpk->chain, i);
 			if (!X509_STORE_add_cert(chain_store, x))
-				goto err;
+				{
+				error = ERR_peek_last_error();
+				if (ERR_GET_LIB(error) != ERR_LIB_X509 ||
+				    ERR_GET_REASON(error) != X509_R_CERT_ALREADY_IN_HASH_TABLE)
+					goto err;
+				ERR_clear_error();
+				}
 			}
 		/* Add EE cert too: it might be self signed */
 		if (!X509_STORE_add_cert(chain_store, cpk->x509))
-			goto err;
+			{
+			error = ERR_peek_last_error();
+			if (ERR_GET_LIB(error) != ERR_LIB_X509 ||
+			    ERR_GET_REASON(error) != X509_R_CERT_ALREADY_IN_HASH_TABLE)
+				goto err;
+			ERR_clear_error();
+			}
 		}
 	else
 		{
@@ -1525,8 +1275,10 @@ int ssl_build_cert_chain(CERT *c, X509_STORE *chain_store, int flags)
 	i = X509_verify_cert(&xs_ctx);
 	if (i <= 0 && flags & SSL_BUILD_CHAIN_FLAG_IGNORE_ERROR)
 		{
-		ERR_clear_error();
+		if (flags & SSL_BUILD_CHAIN_FLAG_CLEAR_ERROR)
+			ERR_clear_error();
 		i = 1;
+		rv = 2;
 		}
 	if (i > 0)
 		chain = X509_STORE_CTX_get1_chain(&xs_ctx);
@@ -1561,7 +1313,8 @@ int ssl_build_cert_chain(CERT *c, X509_STORE *chain_store, int flags)
 			}
 		}
 	cpk->chain = chain;
-	rv = 1;
+	if (rv == 0)
+		rv = 1;
 	err:
 	if (flags & SSL_BUILD_CHAIN_FLAG_CHECK)
 		X509_STORE_free(chain_store);

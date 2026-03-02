@@ -206,11 +206,9 @@ extern "C" {
 #define TLSEXT_TYPE_status_request		5
 /* ExtensionType values from RFC4681 */
 #define TLSEXT_TYPE_user_mapping		6
-
 /* ExtensionType values from RFC5878 */
 #define TLSEXT_TYPE_client_authz		7
 #define TLSEXT_TYPE_server_authz		8
-
 /* ExtensionType values from RFC6091 */
 #define TLSEXT_TYPE_cert_type		9
 
@@ -232,6 +230,12 @@ extern "C" {
 
 /* ExtensionType value from draft-ietf-tls-applayerprotoneg-00 */
 #define TLSEXT_TYPE_application_layer_protocol_negotiation 16
+
+/* ExtensionType value for TLS padding extension.
+ * http://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml
+ * http://tools.ietf.org/html/draft-agl-tls-padding-03
+ */
+#define TLSEXT_TYPE_padding	21
 
 /* ExtensionType value from RFC4507 */
 #define TLSEXT_TYPE_session_ticket		35
@@ -296,17 +300,6 @@ extern "C" {
 #ifndef OPENSSL_NO_TLSEXT
 
 #define TLSEXT_MAXLEN_host_name 255
-
-/* From RFC 5878 */
-#define TLSEXT_SUPPLEMENTALDATATYPE_authz_data 16386
-
-/* DTCP Authorization Type
- * https://www.iana.org/assignments/tls-parameters/tls-parameters.xml#authorization-data-rules
- * http://tools.ietf.org/id/draft-dthakore-tls-authz-04.txt
- */
-#define TLSEXT_AUTHZDATAFORMAT_dtcp 66
-
-#define TLSEXT_MAXLEN_supplemental_data 1024*16 /* Let's limit to 16k */
 
 const char *SSL_get_servername(const SSL *s, const int type);
 int SSL_get_servername_type(const SSL *s);

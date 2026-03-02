@@ -231,15 +231,6 @@
 			 l|=((BN_ULLONG)(*((c)++)))<< 8, \
 			 l|=((BN_ULLONG)(*((c)++))))
 
-#define n2l8(c,l)	(l =((BN_ULLONG)(*((c)++)))<<56, \
-			 l|=((BN_ULLONG)(*((c)++)))<<48, \
-			 l|=((BN_ULLONG)(*((c)++)))<<40, \
-			 l|=((BN_ULLONG)(*((c)++)))<<32, \
-			 l|=((BN_ULLONG)(*((c)++)))<<24, \
-			 l|=((BN_ULLONG)(*((c)++)))<<16, \
-			 l|=((BN_ULLONG)(*((c)++)))<< 8, \
-			 l|=((BN_ULLONG)(*((c)++))))
-
 /* NOTE - c is not incremented as per l2c */
 #define l2cn(l1,l2,c,n)	{ \
 			c+=n; \
@@ -320,6 +311,7 @@
 #define SSL_aPSK                0x00000080L /* PSK auth */
 #define SSL_aGOST94				0x00000100L /* GOST R 34.10-94 signature auth */
 #define SSL_aGOST01 			0x00000200L /* GOST R 34.10-2001 signature auth */
+#define SSL_aSRP 		0x00000400L /* SRP auth */
 
 
 /* Bits for algorithm_enc (symmetric encryption) */
@@ -1272,20 +1264,13 @@ int tls1_shared_list(SSL *s,
 			const unsigned char *l1, size_t l1len,
 			const unsigned char *l2, size_t l2len,
 			int nmatch);
-unsigned char *ssl_add_clienthello_tlsext(SSL *s, unsigned char *p, unsigned char *limit, int *al);
-unsigned char *ssl_add_serverhello_tlsext(SSL *s, unsigned char *p, unsigned char *limit, int *al);
+unsigned char *ssl_add_clienthello_tlsext(SSL *s, unsigned char *buf, unsigned char *limit, int *al);
+unsigned char *ssl_add_serverhello_tlsext(SSL *s, unsigned char *buf, unsigned char *limit, int *al);
 int ssl_parse_clienthello_tlsext(SSL *s, unsigned char **data, unsigned char *d, int n);
 int ssl_check_clienthello_tlsext_late(SSL *s);
 int ssl_parse_serverhello_tlsext(SSL *s, unsigned char **data, unsigned char *d, int n);
 int ssl_prepare_clienthello_tlsext(SSL *s);
 int ssl_prepare_serverhello_tlsext(SSL *s);
-
-/* server only */
-int tls1_send_server_supplemental_data(SSL *s, int *skip);
-int tls1_get_client_supplemental_data(SSL *s);
-/* client only */
-int tls1_send_client_supplemental_data(SSL *s, int *skip);
-int tls1_get_server_supplemental_data(SSL *s);
 
 #ifndef OPENSSL_NO_HEARTBEATS
 int tls1_heartbeat(SSL *s);
@@ -1365,15 +1350,4 @@ void tls_fips_digest_extra(
 	const EVP_CIPHER_CTX *cipher_ctx, EVP_MD_CTX *mac_ctx,
 	const unsigned char *data, size_t data_len, size_t orig_len);
 
-#ifndef OPENSSL_NO_DANE
-
-typedef struct {
-	unsigned char *tlsa_record;
-	int tlsa_witness, tlsa_mask;
-	int (*get_issuer)(X509 **issuer,X509_STORE_CTX *ctx,X509 *x);
-	} TLSA_EX_DATA;
-
-TLSA_EX_DATA *SSL_get_TLSA_ex_data(SSL *);
-int SSL_get_TLSA_ex_data_idx(void);
-#endif
 #endif
