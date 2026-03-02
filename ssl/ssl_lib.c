@@ -58,7 +58,7 @@
  * [including the GNU Public Licence.]
  */
 /* ====================================================================
- * Copyright (c) 1998-2018 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2024 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -1663,13 +1663,21 @@ int SSL_select_next_proto(unsigned char **out, unsigned char *outlen,
     const unsigned char *result;
     int status = OPENSSL_NPN_UNSUPPORTED;
 
+    if (client_len == 0 || client[0] == 0 || client[0] > client_len - 1) {
+        *out = NULL;
+        *outlen = 0;
+        return OPENSSL_NPN_NO_OVERLAP;
+    }
+
     /*
      * For each protocol in server preference order, see if we support it.
      */
     for (i = 0; i < server_len;) {
         for (j = 0; j < client_len;) {
-            if (server[i] == client[j] &&
-                memcmp(&server[i + 1], &client[j + 1], server[i]) == 0) {
+            if (server[i] == client[j]
+                    && i + server[i] < server_len
+                    && j + client[j] < client_len
+                    && memcmp(&server[i + 1], &client[j + 1], server[i]) == 0) {
                 /* We found a match */
                 result = &server[i];
                 status = OPENSSL_NPN_NEGOTIATED;

@@ -7,6 +7,17 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zj and 1.0.2zk [3 Sep 2024]
+
+ *) Fixed possible buffer overread in SSL_select_next_proto().
+
+    Calling the OpenSSL API function SSL_select_next_proto with an empty
+    supported client protocols buffer may cause a crash or memory contents
+    to be sent to the peer.
+
+    (CVE-2024-5535)
+    [Matt Caswell]
+
  Changes between 1.0.2zi and 1.0.2zj [30 Jan 2024]
 
  *) A file in PKCS12 format can contain certificates and keys and may come from
