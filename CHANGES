@@ -7,6 +7,23 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zl and 1.0.2zm [30 Sep 2025]
+
+ *) Fix Out-of-bounds read & write in RFC 3211 KEK Unwrap
+
+    Issue summary: An application trying to decrypt CMS messages encrypted using
+    password based encryption can trigger an out-of-bounds read and write.
+
+    Impact summary: This out-of-bounds read may trigger a crash which leads to
+    Denial of Service for an application. The out-of-bounds write can cause a
+    memory corruption which can have various consequences including a Denial of
+    Service or Execution of attacker-supplied code.
+
+    The issue was reported by Stanislav Fort (Aisle Research).
+
+    (CVE-2025-9230)
+    [Viktor Dukhovni]
+
  Changes between 1.0.2zk and 1.0.2zl [11 Feb 2025]
 
  *) Fixed timing side-channel in ECDSA signature computation.

@@ -5,6 +5,11 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zl and OpenSSL 1.0.2zm [30 Sep 2025]
+
+      o Fix Out-of-bounds read & write in RFC 3211 KEK Unwrap.
+        (CVE-2025-9230)
+
   Major changes between OpenSSL 1.0.2zk and OpenSSL 1.0.2zl [11 Feb 2025]
 
       o Fixed timing side-channel in ECDSA signature computation
