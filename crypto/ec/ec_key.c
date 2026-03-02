@@ -3,7 +3,7 @@
  * Written by Nils Larsch for the OpenSSL project.
  */
 /* ====================================================================
- * Copyright (c) 1998-2005 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -561,4 +561,12 @@ void EC_KEY_set_flags(EC_KEY *key, int flags)
 void EC_KEY_clear_flags(EC_KEY *key, int flags)
 {
     key->flags &= ~flags;
+}
+
+int EC_KEY_decoded_from_explicit_params(const EC_KEY *key)
+{
+    if (key == NULL || key->group == NULL)
+        return -1;
+    return EC_GROUP_VERSION(key->group)
+           && key->group->decoded_from_explicit_params;
 }

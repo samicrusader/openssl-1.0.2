@@ -3,7 +3,7 @@
  * Originally written by Bodo Moeller for the OpenSSL project.
  */
 /* ====================================================================
- * Copyright (c) 1998-2019 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -260,6 +260,8 @@ struct ec_group_st {
     int (*field_mod_func) (BIGNUM *, const BIGNUM *, const BIGNUM *,
                            BN_CTX *);
     BN_MONT_CTX *mont_data;     /* data for ECDSA inverse */
+    int decoded_from_explicit_params; /* set if decoded from explicit
+                                       * curve parameters encoding */
 } /* EC_GROUP */ ;
 
 struct ec_key_st {

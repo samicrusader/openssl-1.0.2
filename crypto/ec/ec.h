@@ -7,7 +7,7 @@
  * \author Originally written by Bodo Moeller for the OpenSSL project
  */
 /* ====================================================================
- * Copyright (c) 1998-2020 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -758,6 +758,8 @@ int EC_KEY_get_flags(const EC_KEY *key);
 void EC_KEY_set_flags(EC_KEY *key, int flags);
 
 void EC_KEY_clear_flags(EC_KEY *key, int flags);
+
+int EC_KEY_decoded_from_explicit_params(const EC_KEY *key);
 
 /** Creates a new EC_KEY object using a named curve as underlying
  *  EC_GROUP object.

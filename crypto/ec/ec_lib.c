@@ -3,7 +3,7 @@
  * Originally written by Bodo Moeller for the OpenSSL project.
  */
 /* ====================================================================
- * Copyright (c) 1998-2019 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -240,6 +240,8 @@ int EC_GROUP_copy(EC_GROUP *dest, const EC_GROUP *src)
     dest->curve_name = src->curve_name;
     dest->asn1_flag = src->asn1_flag;
     dest->asn1_form = src->asn1_form;
+    if (EC_GROUP_VERSION(src))
+        dest->decoded_from_explicit_params = src->decoded_from_explicit_params;
 
     if (src->seed) {
         if (dest->seed)

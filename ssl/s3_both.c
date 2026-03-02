@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 /* ====================================================================
- * Copyright (c) 1998-2002 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2022 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -543,6 +543,7 @@ int ssl_verify_alarm_type(long type)
     case X509_V_ERR_HOSTNAME_MISMATCH:
     case X509_V_ERR_EMAIL_MISMATCH:
     case X509_V_ERR_IP_ADDRESS_MISMATCH:
+    case X509_V_ERR_EC_KEY_EXPLICIT_PARAMS:
         al = SSL_AD_BAD_CERTIFICATE;
         break;
     case X509_V_ERR_CERT_SIGNATURE_FAILURE:
