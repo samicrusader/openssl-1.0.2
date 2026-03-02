@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=1.0.2zd
+VERSION=1.0.2ze
 MAJOR=1
 MINOR=0.2
 SHLIB_VERSION_NUMBER=1.0.0
@@ -470,7 +470,7 @@ test:   tests
 
 tests: rehash
 	@(cd test && echo "testing..." && \
-	$(CLEARENV) && $(MAKE) -e $(BUILDENV) TOP=.. TESTS='$(TESTS)' OPENSSL_DEBUG_MEMORY=on OPENSSL_CONF=../apps/openssl.cnf tests );
+	$(CLEARENV) && $(MAKE) -e $(BUILDENV) TOP=.. TESTS='$(TESTS)' OPENSSL_DEBUG_MEMORY=on OPENSSL_CONF=../apps/openssl.cnf MALLOC_PERTURB_=128 tests );
 	OPENSSL_CONF=apps/openssl.cnf util/opensslwrap.sh version -a
 
 report:
