@@ -5,7 +5,7 @@
  * EdelKey project and contributed to the OpenSSL project 2004.
  */
 /* ====================================================================
- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 2004-2021 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -262,6 +262,7 @@ BIGNUM *SRP_Calc_client_key(BIGNUM *N, BIGNUM *B, BIGNUM *g, BIGNUM *x,
                             BIGNUM *a, BIGNUM *u)
 {
     BIGNUM *tmp = NULL, *tmp2 = NULL, *tmp3 = NULL, *k = NULL, *K = NULL;
+    BIGNUM *xtmp = NULL;
     BN_CTX *bn_ctx;
 
     if (u == NULL || B == NULL || N == NULL || g == NULL || x == NULL
@@ -270,10 +271,13 @@ BIGNUM *SRP_Calc_client_key(BIGNUM *N, BIGNUM *B, BIGNUM *g, BIGNUM *x,
 
     if ((tmp = BN_new()) == NULL ||
         (tmp2 = BN_new()) == NULL ||
-        (tmp3 = BN_new()) == NULL)
+        (tmp3 = BN_new()) == NULL ||
+        (xtmp = BN_new()) == NULL)
         goto err;
 
-    if (!BN_mod_exp(tmp, g, x, N, bn_ctx))
+    BN_with_flags(xtmp, x, BN_FLG_CONSTTIME);
+    BN_set_flags(tmp, BN_FLG_CONSTTIME);
+    if (!BN_mod_exp(tmp, g, xtmp, N, bn_ctx))
         goto err;
     if (!(k = srp_Calc_k(N, g)))
         goto err;
@@ -282,7 +286,7 @@ BIGNUM *SRP_Calc_client_key(BIGNUM *N, BIGNUM *B, BIGNUM *g, BIGNUM *x,
     if (!BN_mod_sub(tmp, B, tmp2, N, bn_ctx))
         goto err;
 
-    if (!BN_mul(tmp3, u, x, bn_ctx))
+    if (!BN_mul(tmp3, u, xtmp, bn_ctx))
         goto err;
     if (!BN_add(tmp2, a, tmp3))
         goto err;
@@ -294,6 +298,7 @@ BIGNUM *SRP_Calc_client_key(BIGNUM *N, BIGNUM *B, BIGNUM *g, BIGNUM *x,
 
  err:
     BN_CTX_free(bn_ctx);
+    BN_free(xtmp);
     BN_clear_free(tmp);
     BN_clear_free(tmp2);
     BN_clear_free(tmp3);
