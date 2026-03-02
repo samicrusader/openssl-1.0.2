@@ -4,7 +4,7 @@
  * 2004.
  */
 /* ====================================================================
- * Copyright (c) 2004 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 2004-2023 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -111,9 +111,15 @@ X509_POLICY_NODE *level_find_node(const X509_POLICY_LEVEL *level,
 X509_POLICY_NODE *level_add_node(X509_POLICY_LEVEL *level,
                                  const X509_POLICY_DATA *data,
                                  X509_POLICY_NODE *parent,
-                                 X509_POLICY_TREE *tree)
+                                 X509_POLICY_TREE *tree,
+                                 int extra_data)
 {
     X509_POLICY_NODE *node;
+
+    /* Verify that the tree isn't too large.  This mitigates CVE-2023-0464 */
+    if (tree->node_maximum > 0 && tree->node_count >= tree->node_maximum)
+        return NULL;
+
     node = OPENSSL_malloc(sizeof(X509_POLICY_NODE));
     if (!node)
         return NULL;
@@ -136,19 +142,28 @@ X509_POLICY_NODE *level_add_node(X509_POLICY_LEVEL *level,
         }
     }
 
-    if (tree) {
+    if (extra_data) {
         if (!tree->extra_data)
             tree->extra_data = sk_X509_POLICY_DATA_new_null();
         if (!tree->extra_data)
-            goto node_error;
+            goto extra_data_error;
         if (!sk_X509_POLICY_DATA_push(tree->extra_data, data))
-            goto node_error;
+            goto extra_data_error;
     }
 
+    tree->node_count++;
     if (parent)
         parent->nchild++;
 
     return node;
+
+ extra_data_error:
+    if (level != NULL) {
+        if (level->anyPolicy == node)
+            level->anyPolicy = NULL;
+        else
+            (void) sk_X509_POLICY_NODE_pop(level->nodes);
+    }
 
  node_error:
     policy_node_free(node);
