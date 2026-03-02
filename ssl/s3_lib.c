@@ -3028,10 +3028,6 @@ void ssl3_free(SSL *s)
 #ifndef OPENSSL_NO_SRP
 	SSL_SRP_CTX_free(s);
 #endif
-#ifndef OPENSSL_NO_TLSEXT
-	if (s->s3->serverinfo_client_tlsext_custom_types != NULL)
-		OPENSSL_free(s->s3->serverinfo_client_tlsext_custom_types);
-#endif
 	OPENSSL_cleanse(s->s3,sizeof *s->s3);
 	OPENSSL_free(s->s3);
 	s->s3=NULL;
@@ -3076,12 +3072,6 @@ void ssl3_clear(SSL *s)
 		}
 #endif
 #ifndef OPENSSL_NO_TLSEXT
-	if (s->s3->serverinfo_client_tlsext_custom_types != NULL)
-		{
-		OPENSSL_free(s->s3->serverinfo_client_tlsext_custom_types);
-		s->s3->serverinfo_client_tlsext_custom_types = NULL;
-		}
-	s->s3->serverinfo_client_tlsext_custom_types_count = 0;
 #ifndef OPENSSL_NO_EC
 	s->s3->is_probably_safari = 0;
 #endif /* !OPENSSL_NO_EC */
@@ -3441,8 +3431,10 @@ long ssl3_ctrl(SSL *s, int cmd, long larg, void *parg)
 			cipher = s->s3->tmp.new_cipher;
 			if (!cipher)
 				return 0;
-			/* No certificate for unauthenticated ciphersuites */
-			if (cipher->algorithm_auth & SSL_aNULL)
+			/* No certificate for unauthenticated ciphersuites
+			 * or using SRP authentication
+			 */
+			if (cipher->algorithm_auth & (SSL_aNULL|SSL_aSRP))
 				return 2;
 			cpk = ssl_get_server_send_pkey(s);
 			if (!cpk)
@@ -4133,8 +4125,13 @@ SSL_CIPHER *ssl3_choose_cipher(SSL *s, STACK_OF(SSL_CIPHER) *clnt,
 		emask_k = cert->export_mask_k;
 		emask_a = cert->export_mask_a;
 #ifndef OPENSSL_NO_SRP
-		mask_k=cert->mask_k | s->srp_ctx.srp_Mask;
-		emask_k=cert->export_mask_k | s->srp_ctx.srp_Mask;
+		if (s->srp_ctx.srp_Mask & SSL_kSRP)
+			{
+			mask_k |= SSL_kSRP;
+			emask_k |= SSL_kSRP;
+			mask_a |= SSL_aSRP;
+			emask_a |= SSL_aSRP;
+			}
 #endif
 			
 #ifdef KSSL_DEBUG

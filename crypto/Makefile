@@ -31,6 +31,7 @@ CPUID_OBJ=mem_clr.o
 LIBS=
 
 GENERAL=Makefile README crypto-lib.com install.com
+TEST=constant_time_test.c
 
 LIB= $(TOP)/libcrypto.a
 SHARED_LIB= libcrypto$(SHLIB_EXT)
@@ -43,7 +44,8 @@ SRC= $(LIBSRC)
 
 EXHEADER= crypto.h opensslv.h opensslconf.h ebcdic.h symhacks.h \
 	ossl_typ.h
-HEADER=	cryptlib.h buildinf.h md32_common.h o_time.h o_str.h o_dir.h $(EXHEADER)
+HEADER=	cryptlib.h buildinf.h md32_common.h o_time.h o_str.h o_dir.h \
+	constant_time_locl.h $(EXHEADER)
 
 ALL=    $(GENERAL) $(SRC) $(HEADER)
 
@@ -77,9 +79,9 @@ ia64cpuid.s: ia64cpuid.S;	$(CC) $(CFLAGS) -E ia64cpuid.S > $@
 ppccpuid.s:	ppccpuid.pl;	$(PERL) ppccpuid.pl $(PERLASM_SCHEME) $@
 pariscid.s:	pariscid.pl;	$(PERL) pariscid.pl $(PERLASM_SCHEME) $@
 alphacpuid.s:	alphacpuid.pl
-	(preproc=/tmp/$$$$.$@; trap "rm $$preproc" INT; \
+	(preproc=$$$$.$@.S; trap "rm $$preproc" INT; \
 	$(PERL) alphacpuid.pl > $$preproc && \
-	$(CC) -E $$preproc > $@ && rm $$preproc)
+	$(CC) -E -P $$preproc > $@ && rm $$preproc)
 
 testapps:
 	[ -z "$(THIS)" ] || (	if echo $(SDIRS) | fgrep ' des '; \

@@ -376,7 +376,7 @@ static unsigned int _strlen31(const char *str)
 #  define check_winnt() (1)
 #else
 #  define check_winnt() (GetVersion() < 0x80000000)
-#endif 
+#endif
 
 #else /* The non-microsoft world */
 
@@ -486,6 +486,10 @@ static unsigned int _strlen31(const char *str)
 
 
 /*************/
+
+#if defined(OPENSSL_NO_SOCK) && !defined(OPENSSL_NO_DGRAM)
+#  define OPENSSL_NO_DGRAM
+#endif
 
 #ifdef USE_SOCKETS
 #  if defined(WINDOWS) || defined(MSDOS)
@@ -735,10 +739,25 @@ struct servent *getservbyname(const char *name, const char *proto);
 #include <OS.h>
 #endif
 
+#if !defined(inline) && !defined(__cplusplus)
+# if defined(__STDC_VERSION__) && __STDC_VERSION__>=199901L
+   /* do nothing, inline works */
+# elif defined(__GNUC__) && __GNUC__>=3 && !defined(__NO_INLINE__)
+   /* do nothing, inline works */
+# elif defined(_MSC_VER)
+  /*
+   * Visual Studio: inline is available in C++ only, however
+   * __inline is available for C, see
+   * http://msdn.microsoft.com/en-us/library/z8y1yy88.aspx
+   */
+#  define inline __inline
+# else
+#  define inline
+# endif
+#endif
 
 #ifdef  __cplusplus
 }
 #endif
 
 #endif
-

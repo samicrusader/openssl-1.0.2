@@ -612,7 +612,6 @@ extern "C" {
 /* #define	X509_get_serialNumber(x) ((x)->cert_info->serialNumber) */
 #define		X509_get_notBefore(x) ((x)->cert_info->validity->notBefore)
 #define		X509_get_notAfter(x) ((x)->cert_info->validity->notAfter)
-#define		X509_get_cert_info(x) ((x)->cert_info)
 #define		X509_extract_key(x)	X509_get_pubkey(x) /*****/
 #define		X509_REQ_get_version(x) ASN1_INTEGER_get((x)->req_info->version)
 #define		X509_REQ_get_subject_name(x) ((x)->req_info->subject)
@@ -625,11 +624,6 @@ extern "C" {
 #define 	X509_CRL_get_nextUpdate(x) ((x)->crl->nextUpdate)
 #define		X509_CRL_get_issuer(x) ((x)->crl->issuer)
 #define		X509_CRL_get_REVOKED(x) ((x)->crl->revoked)
-
-#define		X509_CINF_set_modified(c) ((c)->enc.modified = 1)
-#define		X509_CINF_get_issuer(c) (&(c)->issuer)
-#define		X509_CINF_get_extensions(c) ((c)->extensions)
-#define		X509_CINF_get_signature(c) ((c)->signature)
 
 void X509_CRL_set_default_method(const X509_CRL_METHOD *meth);
 X509_CRL_METHOD *X509_CRL_METHOD_new(
@@ -857,6 +851,8 @@ int X509_set_ex_data(X509 *r, int idx, void *arg);
 void *X509_get_ex_data(X509 *r, int idx);
 int		i2d_X509_AUX(X509 *a,unsigned char **pp);
 X509 *		d2i_X509_AUX(X509 **a,const unsigned char **pp,long length);
+
+int i2d_re_X509_tbs(X509 *x, unsigned char **pp);
 
 void X509_get0_signature(ASN1_BIT_STRING **psig, X509_ALGOR **palg,
 								const X509 *x);

@@ -4,7 +4,7 @@
 ## Makefile for OpenSSL
 ##
 
-VERSION=1.0.2-beta2
+VERSION=1.0.2-beta3
 MAJOR=1
 MINOR=0.2
 SHLIB_VERSION_NUMBER=1.0.0
@@ -13,7 +13,7 @@ SHLIB_MAJOR=1
 SHLIB_MINOR=0.0
 SHLIB_EXT=
 PLATFORM=dist
-OPTIONS= no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-libunbound no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-ssl-trace no-store no-zlib no-zlib-dynamic static-engine
+OPTIONS= no-ec_nistp_64_gcc_128 no-gmp no-jpake no-krb5 no-libunbound no-md2 no-rc5 no-rfc3779 no-sctp no-shared no-ssl-trace no-store no-unit-test no-zlib no-zlib-dynamic static-engine
 CONFIGURE_ARGS=dist
 SHLIB_TARGET=
 
@@ -61,7 +61,7 @@ OPENSSLDIR=/usr/local/ssl
 
 CC= cc
 CFLAG= -O
-DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE
+DEPFLAG= -DOPENSSL_NO_EC_NISTP_64_GCC_128 -DOPENSSL_NO_GMP -DOPENSSL_NO_JPAKE -DOPENSSL_NO_LIBUNBOUND -DOPENSSL_NO_MD2 -DOPENSSL_NO_RC5 -DOPENSSL_NO_RFC3779 -DOPENSSL_NO_SCTP -DOPENSSL_NO_SSL_TRACE -DOPENSSL_NO_STORE -DOPENSSL_NO_UNIT_TEST
 PEX_LIBS= 
 EX_LIBS= 
 EXE_EXT= 
@@ -90,6 +90,7 @@ PROCESSOR=
 # CPUID module collects small commonly used assembler snippets
 CPUID_OBJ= mem_clr.o
 BN_ASM= bn_asm.o
+EC_ASM= 
 DES_ENC= des_enc.o fcrypt_b.o
 AES_ENC= aes_core.o aes_cbc.o
 BF_ENC= bf_enc.o
@@ -223,8 +224,8 @@ BUILDENV=	PLATFORM='$(PLATFORM)' PROCESSOR='$(PROCESSOR)' \
 		EXE_EXT='$(EXE_EXT)' SHARED_LIBS='$(SHARED_LIBS)'	\
 		SHLIB_EXT='$(SHLIB_EXT)' SHLIB_TARGET='$(SHLIB_TARGET)'	\
 		PEX_LIBS='$(PEX_LIBS)' EX_LIBS='$(EX_LIBS)'	\
-		CPUID_OBJ='$(CPUID_OBJ)'			\
-		BN_ASM='$(BN_ASM)' DES_ENC='$(DES_ENC)' 	\
+		CPUID_OBJ='$(CPUID_OBJ)' BN_ASM='$(BN_ASM)'	\
+		EC_ASM='$(EC_ASM)' DES_ENC='$(DES_ENC)' 	\
 		AES_ENC='$(AES_ENC)' CMLL_ENC='$(CMLL_ENC)'	\
 		BF_ENC='$(BF_ENC)' CAST_ENC='$(CAST_ENC)'	\
 		RC4_ENC='$(RC4_ENC)' RC5_ENC='$(RC5_ENC)'	\
@@ -614,6 +615,10 @@ install_sw:
 
 install_html_docs:
 	here="`pwd`"; \
+	filecase=; \
+	case "$(PLATFORM)" in DJGPP|Cygwin*|mingw*|darwin*-*-cc) \
+		filecase=-i; \
+	esac; \
 	for subdir in apps crypto ssl; do \
 		mkdir -p $(INSTALL_PREFIX)$(HTMLDIR)/$$subdir; \
 		for i in doc/$$subdir/*.pod; do \
@@ -642,7 +647,7 @@ install_docs:
 	@pod2man="`cd ./util; ./pod2mantest $(PERL)`"; \
 	here="`pwd`"; \
 	filecase=; \
-	case "$(PLATFORM)" in DJGPP|Cygwin*|mingw*) \
+	case "$(PLATFORM)" in DJGPP|Cygwin*|mingw*|darwin*-*-cc) \
 		filecase=-i; \
 	esac; \
 	set -e; for i in doc/apps/*.pod; do \

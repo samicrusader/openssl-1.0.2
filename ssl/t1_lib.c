@@ -296,6 +296,38 @@ static const unsigned char suiteb_curves[] =
 		0, TLSEXT_curve_P_384
 	};
 
+#ifdef OPENSSL_FIPS
+/* Brainpool not allowed in FIPS mode */
+static const unsigned char fips_curves_default[] =
+	{
+		0,14, /* sect571r1 (14) */ 
+		0,13, /* sect571k1 (13) */ 
+		0,25, /* secp521r1 (25) */	
+		0,11, /* sect409k1 (11) */ 
+		0,12, /* sect409r1 (12) */
+		0,24, /* secp384r1 (24) */
+		0,9,  /* sect283k1 (9) */
+		0,10, /* sect283r1 (10) */ 
+		0,22, /* secp256k1 (22) */ 
+		0,23, /* secp256r1 (23) */ 
+		0,8,  /* sect239k1 (8) */ 
+		0,6,  /* sect233k1 (6) */
+		0,7,  /* sect233r1 (7) */ 
+		0,20, /* secp224k1 (20) */ 
+		0,21, /* secp224r1 (21) */
+		0,4,  /* sect193r1 (4) */ 
+		0,5,  /* sect193r2 (5) */ 
+		0,18, /* secp192k1 (18) */
+		0,19, /* secp192r1 (19) */ 
+		0,1,  /* sect163k1 (1) */
+		0,2,  /* sect163r1 (2) */
+		0,3,  /* sect163r2 (3) */
+		0,15, /* secp160k1 (15) */
+		0,16, /* secp160r1 (16) */ 
+		0,17, /* secp160r2 (17) */ 
+	};
+#endif
+
 int tls1_ec_curve_id2nid(int curve_id)
 	{
 	/* ECC curves from draft-ietf-tls-ecc-12.txt (Oct. 17, 2005) */
@@ -406,6 +438,14 @@ static void tls1_get_curvelist(SSL *s, int sess,
 		}
 	if (!*pcurves)
 		{
+#ifdef OPENSSL_FIPS
+		if (FIPS_mode())
+			{
+			*pcurves = fips_curves_default;
+			*pcurveslen = sizeof(fips_curves_default);
+			return;
+			}
+#endif
 		*pcurves = eccurves_default;
 		*pcurveslen = sizeof(eccurves_default);
 		}
@@ -523,6 +563,14 @@ int tls1_set_curves(unsigned char **pext, size_t *pextlen,
 		unsigned long idmask;
 		int id;
 		id = tls1_ec_nid2curve_id(curves[i]);
+#ifdef OPENSSL_FIPS
+		/* NB: 25 is last curve ID supported by FIPS module */
+		if (FIPS_mode() && id > 25)
+			{
+			OPENSSL_free(clist);
+			return 0;
+			}
+#endif
 		idmask = 1L << id;
 		if (!id || (dup_list & idmask))
 			{
@@ -1086,6 +1134,13 @@ void ssl_set_client_disabled(SSL *s)
 		c->mask_k |= SSL_kPSK;
 		}
 #endif /* OPENSSL_NO_PSK */
+#ifndef OPENSSL_NO_SRP
+	if (!(s->srp_ctx.srp_Mask & SSL_kSRP))
+		{
+		c->mask_a |= SSL_aSRP;
+		c->mask_k |= SSL_kSRP;
+		}
+#endif
 	c->valid = 1;
 	}
 
@@ -1437,40 +1492,11 @@ unsigned char *ssl_add_clienthello_tlsext(SSL *s, unsigned char *buf, unsigned c
 			}
                 ret += el;
                 }
-
+	custom_ext_init(&s->cert->cli_ext);
 	/* Add custom TLS Extensions to ClientHello */
-	if (s->ctx->custom_cli_ext_records_count)
-		{
-		size_t i;
-		custom_cli_ext_record* record;
+	if (!custom_ext_add(s, 0, &ret, limit, al))
+		return NULL;
 
-		for (i = 0; i < s->ctx->custom_cli_ext_records_count; i++)
-			{
-			const unsigned char* out = NULL;
-			unsigned short outlen = 0;
-
-			record = &s->ctx->custom_cli_ext_records[i];
-			/* NULL callback sends empty extension */ 
-			/* -1 from callback omits extension */
-			if (record->fn1)
-				{
-				int cb_retval = 0;
-				cb_retval = record->fn1(s, record->ext_type,
-							&out, &outlen, al,
-							record->arg);
-				if (cb_retval == 0)
-					return NULL; /* error */
-				if (cb_retval == -1)
-					continue; /* skip this extension */
-				}
-			if (limit < ret + 4 + outlen)
-				return NULL;
-			s2n(record->ext_type, ret);
-			s2n(outlen, ret);
-			memcpy(ret, out, outlen);
-			ret += outlen;
-			}
-		}
 	/* Add padding to workaround bugs in F5 terminators.
 	 * See https://tools.ietf.org/html/draft-agl-tls-padding-03
 	 *
@@ -1513,8 +1539,6 @@ unsigned char *ssl_add_serverhello_tlsext(SSL *s, unsigned char *buf, unsigned c
 	int extdatalen=0;
 	unsigned char *orig = buf;
 	unsigned char *ret = buf;
-	size_t i;
-	custom_srv_ext_record *record;
 #ifndef OPENSSL_NO_NEXTPROTONEG
 	int next_proto_neg_seen;
 #endif
@@ -1699,32 +1723,8 @@ unsigned char *ssl_add_serverhello_tlsext(SSL *s, unsigned char *buf, unsigned c
 			}
 		}
 #endif
-
-	for (i = 0; i < s->ctx->custom_srv_ext_records_count; i++)
-		{
-		const unsigned char *out = NULL;
-		unsigned short outlen = 0;
-		int cb_retval = 0;
-
-		record = &s->ctx->custom_srv_ext_records[i];
-
-		/* NULL callback or -1 omits extension */
-		if (!record->fn2)
-			continue;
-		cb_retval = record->fn2(s, record->ext_type,
-								&out, &outlen, al,
-								record->arg);
-		if (cb_retval == 0)
-			return NULL; /* error */
-		if (cb_retval == -1)
-			continue; /* skip this extension */
-		if (limit < ret + 4 + outlen)
-			return NULL;
-		s2n(record->ext_type, ret);
-		s2n(outlen, ret);
-		memcpy(ret, out, outlen);
-		ret += outlen;
-		}
+	if (!custom_ext_add(s, 1, &ret, limit, al))
+		return NULL;
 
 	if (s->s3->alpn_selected)
 		{
@@ -1915,14 +1915,6 @@ static int ssl_scan_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char 
 #ifndef OPENSSL_NO_NEXTPROTONEG
 	s->s3->next_proto_neg_seen = 0;
 #endif
-
-	/* Clear observed custom extensions */
-	s->s3->serverinfo_client_tlsext_custom_types_count = 0;
-	if (s->s3->serverinfo_client_tlsext_custom_types != NULL)
-		{
-		OPENSSL_free(s->s3->serverinfo_client_tlsext_custom_types);
-		s->s3->serverinfo_client_tlsext_custom_types = NULL;
-		}
 
 	if (s->s3->alpn_selected)
 		{
@@ -2437,19 +2429,10 @@ static int ssl_scan_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char 
 		 * so call the callback and record the extension number so that
 		 * an appropriate ServerHello may be later returned.
 		 */
-		else if (!s->hit && s->ctx->custom_srv_ext_records_count)
+		else if (!s->hit)
 			{
-			custom_srv_ext_record *record;
-
-			for (i=0; i < s->ctx->custom_srv_ext_records_count; i++)
-				{
-				record = &s->ctx->custom_srv_ext_records[i];
-				if (type == record->ext_type)
-					{
-					if (record->fn1 && !record->fn1(s, type, data, size, al, record->arg))
-						return 0;
-					}						
-				}
+			if (custom_ext_parse(s, 1, type, data, size, al) <= 0)
+				return 0;
 			}
 
 		data+=size;
@@ -2479,6 +2462,7 @@ static int ssl_scan_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char 
 int ssl_parse_clienthello_tlsext(SSL *s, unsigned char **p, unsigned char *d, int n) 
 	{
 	int al = -1;
+	custom_ext_init(&s->cert->srv_ext);
 	if (ssl_scan_clienthello_tlsext(s, p, d, n, &al) <= 0) 
 		{
 		ssl3_send_alert(s,SSL3_AL_FATAL,al); 
@@ -2580,15 +2564,18 @@ static int ssl_scan_serverhello_tlsext(SSL *s, unsigned char **p, unsigned char 
 				*al = TLS1_AD_DECODE_ERROR;
 				return 0;
 				}
-			s->session->tlsext_ecpointformatlist_length = 0;
-			if (s->session->tlsext_ecpointformatlist != NULL) OPENSSL_free(s->session->tlsext_ecpointformatlist);
-			if ((s->session->tlsext_ecpointformatlist = OPENSSL_malloc(ecpointformatlist_length)) == NULL)
+			if (!s->hit)
 				{
-				*al = TLS1_AD_INTERNAL_ERROR;
-				return 0;
+				s->session->tlsext_ecpointformatlist_length = 0;
+				if (s->session->tlsext_ecpointformatlist != NULL) OPENSSL_free(s->session->tlsext_ecpointformatlist);
+				if ((s->session->tlsext_ecpointformatlist = OPENSSL_malloc(ecpointformatlist_length)) == NULL)
+					{
+					*al = TLS1_AD_INTERNAL_ERROR;
+					return 0;
+					}
+				s->session->tlsext_ecpointformatlist_length = ecpointformatlist_length;
+				memcpy(s->session->tlsext_ecpointformatlist, sdata, ecpointformatlist_length);
 				}
-			s->session->tlsext_ecpointformatlist_length = ecpointformatlist_length;
-			memcpy(s->session->tlsext_ecpointformatlist, sdata, ecpointformatlist_length);
 #if 0
 			fprintf(stderr,"ssl_parse_serverhello_tlsext s->session->tlsext_ecpointformatlist ");
 			sdata = s->session->tlsext_ecpointformatlist;
@@ -2772,22 +2759,8 @@ static int ssl_scan_serverhello_tlsext(SSL *s, unsigned char **p, unsigned char 
 		/* If this extension type was not otherwise handled, but 
 		 * matches a custom_cli_ext_record, then send it to the c
 		 * callback */
-		else if (s->ctx->custom_cli_ext_records_count)
-			{
-			size_t i;
-			custom_cli_ext_record* record;
-
-			for (i = 0; i < s->ctx->custom_cli_ext_records_count; i++)
-				{
-				record = &s->ctx->custom_cli_ext_records[i];
-				if (record->ext_type == type)
-					{
-					if (record->fn2 && !record->fn2(s, type, data, size, al, record->arg))
-						return 0;
-					break;
-					}
-				}			
-			}
+		else if (custom_ext_parse(s, 0, type, data, size, al) <= 0)
+				return 0;
  
 		data += size;
 		}

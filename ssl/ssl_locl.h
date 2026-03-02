@@ -526,6 +526,35 @@ typedef struct cert_pkey_st
 #define SSL_CERT_FLAGS_CHECK_TLS_STRICT \
 	(SSL_CERT_FLAG_SUITEB_128_LOS|SSL_CERT_FLAG_TLS_STRICT)
 
+typedef struct {
+	unsigned short ext_type;
+	/* Per-connection flags relating to this extension type: not used 
+	 * if part of an SSL_CTX structure.
+	 */
+	unsigned short ext_flags;
+	custom_ext_add_cb add_cb; 
+	custom_ext_free_cb free_cb; 
+	void *add_arg;
+	custom_ext_parse_cb parse_cb; 
+	void *parse_arg;
+} custom_ext_method;
+
+/* ext_flags values */
+
+/* Indicates an extension has been received.
+ * Used to check for unsolicited or duplicate extensions.
+ */
+#define SSL_EXT_FLAG_RECEIVED	0x1
+/* Indicates an extension has been sent: used to
+ * enable sending of corresponding ServerHello extension.
+ */
+#define SSL_EXT_FLAG_SENT	0x2
+
+typedef struct {
+	custom_ext_method *meths;
+	size_t meths_count;
+} custom_ext_methods;
+
 typedef struct cert_st
 	{
 	/* Current active set */
@@ -620,6 +649,10 @@ typedef struct cert_st
 	/* Raw values of the cipher list from a client */
 	unsigned char *ciphers_raw;
 	size_t ciphers_rawlen;
+
+	/* Custom extension methods for server and client */
+	custom_ext_methods cli_ext;
+	custom_ext_methods srv_ext;
 
 	int references; /* >1 only if SSL_copy_session_id is used */
 	} CERT;
@@ -956,6 +989,16 @@ const SSL_METHOD *func_name(void)  \
 	}; \
 	return &func_name##_data; \
 	}
+
+struct openssl_ssl_test_functions
+	{
+	int (*p_ssl_init_wbio_buffer)(SSL *s, int push);
+	int (*p_ssl3_setup_buffers)(SSL *s);
+	int (*p_tls1_process_heartbeat)(SSL *s);
+	int (*p_dtls1_process_heartbeat)(SSL *s);
+	};
+
+#ifndef OPENSSL_UNIT_TEST
 
 void ssl_clear_cipher_ctx(SSL *s);
 int ssl_clear_bad_session(SSL *s);
@@ -1350,4 +1393,31 @@ void tls_fips_digest_extra(
 	const EVP_CIPHER_CTX *cipher_ctx, EVP_MD_CTX *mac_ctx,
 	const unsigned char *data, size_t data_len, size_t orig_len);
 
+int srp_verify_server_param(SSL *s, int *al);
+
+/* t1_ext.c */
+
+void custom_ext_init(custom_ext_methods *meths);
+
+int custom_ext_parse(SSL *s, int server,
+			unsigned int ext_type,
+			const unsigned char *ext_data, 
+			size_t ext_size,
+			int *al);
+int custom_ext_add(SSL *s, int server,
+			unsigned char **pret,
+			unsigned char *limit,
+			int *al);
+
+int custom_exts_copy(custom_ext_methods *dst, const custom_ext_methods *src);
+void custom_exts_free(custom_ext_methods *exts);
+
+#else
+
+#define ssl_init_wbio_buffer SSL_test_functions()->p_ssl_init_wbio_buffer
+#define ssl3_setup_buffers SSL_test_functions()->p_ssl3_setup_buffers
+#define tls1_process_heartbeat SSL_test_functions()->p_tls1_process_heartbeat
+#define dtls1_process_heartbeat SSL_test_functions()->p_dtls1_process_heartbeat
+
+#endif
 #endif
