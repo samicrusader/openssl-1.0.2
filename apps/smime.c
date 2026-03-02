@@ -4,7 +4,7 @@
  * project.
  */
 /* ====================================================================
- * Copyright (c) 1999-2004 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2021 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -439,6 +439,8 @@ int MAIN(int argc, char **argv)
         BIO_printf(bio_err,
                    "-CApath dir    trusted certificates directory\n");
         BIO_printf(bio_err, "-CAfile file   trusted certificates file\n");
+        BIO_printf(bio_err,
+                   "-trusted_first use trusted certificates first when building the trust chain\n");
         BIO_printf(bio_err,
                    "-no_alt_chains only ever use the first certificate chain found\n");
         BIO_printf(bio_err,

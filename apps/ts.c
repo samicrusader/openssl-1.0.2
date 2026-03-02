@@ -4,7 +4,7 @@
  * 2002.
  */
 /* ====================================================================
- * Copyright (c) 2001 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 2001-2021 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -352,7 +352,7 @@ int MAIN(int argc, char **argv)
                "ts -verify [-data file_to_hash] [-digest digest_bytes] "
                "[-queryfile request.tsq] "
                "-in response.tsr [-token_in] "
-               "-CApath ca_path -CAfile ca_file.pem "
+               "-CApath ca_path -CAfile ca_file.pem -trusted_first"
                "-untrusted cert_file.pem\n");
  cleanup:
     /* Clean up. */

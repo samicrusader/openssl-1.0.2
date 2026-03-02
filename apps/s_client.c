@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 /* ====================================================================
- * Copyright (c) 1998-2018 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2021 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -328,6 +328,8 @@ static void sc_usage(void)
                " -pass arg     - private key file pass phrase source\n");
     BIO_printf(bio_err, " -CApath arg   - PEM format directory of CA's\n");
     BIO_printf(bio_err, " -CAfile arg   - PEM format file of CA's\n");
+    BIO_printf(bio_err,
+               " -trusted_first - Use trusted CA's first when building the trust chain\n");
     BIO_printf(bio_err,
                " -no_alt_chains - only ever use the first certificate chain found\n");
     BIO_printf(bio_err,
