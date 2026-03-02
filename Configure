@@ -1057,6 +1057,7 @@ if (defined($disabled{"ec"}))
 	{
 	$disabled{"ecdsa"} = "forced";
 	$disabled{"ecdh"} = "forced";
+	$disabled{"ec2m"} = "forced";
 	}
 
 # SSL 2.0 requires MD5 and RSA

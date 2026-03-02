@@ -1,6 +1,6 @@
 /* crypto/bn/bn_err.c */
 /* ====================================================================
- * Copyright (c) 1999-2023 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1999-2025 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -100,6 +100,7 @@ static ERR_STRING_DATA BN_str_functs[] = {
     {ERR_FUNC(BN_F_BN_MOD_EXP_MONT), "BN_mod_exp_mont"},
     {ERR_FUNC(BN_F_BN_MOD_EXP_MONT_CONSTTIME), "BN_mod_exp_mont_consttime"},
     {ERR_FUNC(BN_F_BN_MOD_EXP_MONT_WORD), "BN_mod_exp_mont_word"},
+    {ERR_FUNC(BN_F_BN_MOD_EXP_MONT_FIXED_TOP), "bn_mod_exp_mont_fixed_top"},
     {ERR_FUNC(BN_F_BN_MOD_EXP_RECP), "BN_mod_exp_recp"},
     {ERR_FUNC(BN_F_BN_MOD_EXP_SIMPLE), "BN_mod_exp_simple"},
     {ERR_FUNC(BN_F_BN_MOD_INVERSE), "BN_mod_inverse"},

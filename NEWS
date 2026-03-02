@@ -5,6 +5,14 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zk and OpenSSL 1.0.2zl [11 Feb 2025]
+
+      o Fixed timing side-channel in ECDSA signature computation
+        (CVE-2024-13176)
+      o Fixed possible OOB memory access with invalid low-level GF(2^m)
+        elliptic curve parameters
+        (CVE-2024-9143)
+
   Major changes between OpenSSL 1.0.2zj and OpenSSL 1.0.2zk [3 Sep 2024]
 
       o Fixed possible buffer overread in SSL_select_next_proto()

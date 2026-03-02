@@ -275,14 +275,15 @@ bn_gcd.o: ../../include/openssl/opensslv.h ../../include/openssl/ossl_typ.h
 bn_gcd.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
 bn_gcd.o: ../../include/openssl/symhacks.h ../bn_int.h ../cryptlib.h bn_gcd.c
 bn_gcd.o: bn_lcl.h
-bn_gf2m.o: ../../e_os.h ../../include/openssl/bio.h ../../include/openssl/bn.h
+bn_gf2m.o: ../../e_os.h ../../include/openssl/asn1.h
+bn_gf2m.o: ../../include/openssl/bio.h ../../include/openssl/bn.h
 bn_gf2m.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
-bn_gf2m.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h
-bn_gf2m.o: ../../include/openssl/lhash.h ../../include/openssl/opensslconf.h
-bn_gf2m.o: ../../include/openssl/opensslv.h ../../include/openssl/ossl_typ.h
-bn_gf2m.o: ../../include/openssl/safestack.h ../../include/openssl/stack.h
-bn_gf2m.o: ../../include/openssl/symhacks.h ../bn_int.h ../cryptlib.h bn_gf2m.c
-bn_gf2m.o: bn_lcl.h
+bn_gf2m.o: ../../include/openssl/e_os2.h ../../include/openssl/ec.h
+bn_gf2m.o: ../../include/openssl/err.h ../../include/openssl/lhash.h
+bn_gf2m.o: ../../include/openssl/opensslconf.h ../../include/openssl/opensslv.h
+bn_gf2m.o: ../../include/openssl/ossl_typ.h ../../include/openssl/safestack.h
+bn_gf2m.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
+bn_gf2m.o: ../bn_int.h ../cryptlib.h bn_gf2m.c bn_lcl.h
 bn_kron.o: ../../e_os.h ../../include/openssl/bio.h ../../include/openssl/bn.h
 bn_kron.o: ../../include/openssl/buffer.h ../../include/openssl/crypto.h
 bn_kron.o: ../../include/openssl/e_os2.h ../../include/openssl/err.h

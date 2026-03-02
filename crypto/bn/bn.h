@@ -56,7 +56,7 @@
  * [including the GNU Public Licence.]
  */
 /* ====================================================================
- * Copyright (c) 1998-2023 The OpenSSL Project.  All rights reserved.
+ * Copyright (c) 1998-2025 The OpenSSL Project.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -975,6 +975,7 @@ void ERR_load_BN_strings(void);
 # define BN_F_BN_MOD_EXP2_MONT                            118
 # define BN_F_BN_MOD_EXP_MONT                             109
 # define BN_F_BN_MOD_EXP_MONT_CONSTTIME                   124
+# define BN_F_BN_MOD_EXP_MONT_FIXED_TOP                   147
 # define BN_F_BN_MOD_EXP_MONT_WORD                        117
 # define BN_F_BN_MOD_EXP_RECP                             125
 # define BN_F_BN_MOD_EXP_SIMPLE                           126

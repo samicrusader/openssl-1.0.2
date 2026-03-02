@@ -10,9 +10,18 @@ while(<FD>) {
 	$v4 = ($ver>> 4)&0xff;
 	$beta = $ver&0xf;
 	$version = "$v1.$v2.$v3";
-	if ($beta==0xf)	{ $version .= chr(ord('a')+$v4-1) if ($v4);	}
-	elsif ($beta==0){ $version .= "-dev";				}
-	else		{ $version .= "-beta$beta";			}
+	if ($beta==0xf)	{
+	    my $range = ord('z') - ord('a');
+	    while ($v4 > $range) {
+		$version .= 'z';
+		$v4 -= $range;
+	    }
+	    $version .= chr(ord('a')+$v4-1) if ($v4);
+	} elsif ($beta==0) {
+	    $version .= "-dev";
+	} else {
+	    $version .= "-beta$beta";
+	}
 	last;
     }
 }
