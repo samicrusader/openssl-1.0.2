@@ -111,6 +111,14 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
     switch (inform) {
 
     case MBSTRING_BMP:
+        if (nchar > INT_MAX / 2) {
+            ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY, ASN1_R_STRING_TOO_LONG);
+            if (free_out) {
+                ASN1_STRING_free(dest);
+                *out = NULL;
+            }
+            return -1;
+        }
         if (len & 1) {
             ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY,
                     ASN1_R_INVALID_BMPSTRING_LENGTH);
@@ -120,6 +128,14 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
         break;
 
     case MBSTRING_UNIV:
+        if (nchar > INT_MAX / 4) {
+            ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY, ASN1_R_STRING_TOO_LONG);
+            if (free_out) {
+                ASN1_STRING_free(dest);
+                *out = NULL;
+            }
+            return -1;
+        }
         if (len & 3) {
             ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY,
                     ASN1_R_INVALID_UNIVERSALSTRING_LENGTH);
@@ -132,8 +148,11 @@ int ASN1_mbstring_ncopy(ASN1_STRING **out, const unsigned char *in, int len,
         nchar = 0;
         /* This counts the characters and does utf8 syntax checking */
         ret = traverse_string(in, len, MBSTRING_UTF8, in_utf8, &nchar);
-        if (ret < 0) {
-            ASN1err(ASN1_F_ASN1_MBSTRING_NCOPY, ASN1_R_INVALID_UTF8STRING);
+        if (ret < 0) { /* error already raised in out_utf8() */
+            if (free_out) {
+                ASN1_STRING_free(dest);
+                *out = NULL;
+            }
             return -1;
         }
         break;
@@ -307,9 +326,19 @@ static int in_utf8(unsigned long value, void *arg)
 
 static int out_utf8(unsigned long value, void *arg)
 {
-    int *outlen;
+    int *outlen, len;
+
+    len = UTF8_putc(NULL, -1, value);
+    if (len <= 0) {
+        ASN1err(ASN1_F_OUT_UTF8, ASN1_R_INVALID_UTF8STRING);
+        return len;
+    }
     outlen = arg;
-    *outlen += UTF8_putc(NULL, -1, value);
+    if (*outlen > INT_MAX - len) {
+        ASN1err(ASN1_F_OUT_UTF8, ASN1_R_STRING_TOO_LONG);
+        return -1;
+    }
+    *outlen += len;
     return 1;
 }
 
