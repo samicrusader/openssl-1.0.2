@@ -5,6 +5,12 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zn and OpenSSL 1.0.2zo [?? ??? 2026]
+
+      o No known CVEs were fixed and I don't have complete source access to know
+        what was changed.
+        (x)
+
   Major changes between OpenSSL 1.0.2zm and OpenSSL 1.0.2zn [27 Jan 2026]
 
       o Fixed Heap out-of-bounds write in BIO_f_linebuffer on short writes.

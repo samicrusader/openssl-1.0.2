@@ -7,6 +7,16 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zn and 1.0.2zo [?? ??? 2026]
+
+ *) No known CVEs were fixed and I don't have complete source access to know
+    what was changed.
+
+    If you have source access to this release, please hit me up: hi@samicrusader.me
+
+    (x)
+    [x]
+
  Changes between 1.0.2zm and 1.0.2zn [27 Jan 2026]
 
  *) Fixed Heap out-of-bounds write in `BIO_f_linebuffer` on short writes.
