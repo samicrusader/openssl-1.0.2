@@ -5,6 +5,17 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zo and OpenSSL 1.0.2zp [7 Apr 2026]
+
+      o Fixed NULL pointer dereference when processing a delta CRL.
+        (CVE-2026-28388)
+      o Fixed possible NULL dereference when processing CMS
+        KeyAgreeRecipientInfo.
+        (CVE-2026-28389)
+      o Fixed possible NULL dereference when processing CMS
+        KeyTransportRecipientInfo.
+        (CVE-2026-28390)
+
   Major changes between OpenSSL 1.0.2zn and OpenSSL 1.0.2zo [?? ??? 2026]
 
       o No known CVEs were fixed and I don't have complete source access to know

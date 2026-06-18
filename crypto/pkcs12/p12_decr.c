@@ -134,7 +134,8 @@ void *PKCS12_item_decrypt_d2i(X509_ALGOR *algor, const ASN1_ITEM *it,
     int outlen;
 
     if (oct == NULL) {
-        ERR_raise(ERR_LIB_PKCS12, ERR_R_PASSED_NULL_PARAMETER);
+        PKCS12err(PKCS12_F_PKCS12_ITEM_DECRYPT_D2I,
+          ERR_R_PASSED_NULL_PARAMETER);
         return NULL;
     }
 
