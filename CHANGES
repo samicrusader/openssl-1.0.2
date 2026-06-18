@@ -7,6 +7,25 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zn and 1.0.2zo [?? ??? 2026]
+
+ *) Fixed missing `ASN1_TYPE` validation in `TS_RESP_verify_response()`.
+
+    Issue summary: The signing certificate attribute of a TimeStamp Response
+    was read without first checking its ASN.1 type, so a malformed response
+    could cause an invalid memory access through the ASN1_TYPE union.
+
+    Impact summary: An application calling `TS_RESP_verify_response()` on a
+    malformed TimeStamp Response could dereference an invalid or NULL pointer,
+    leading to a Denial of Service.  The OpenSSL advisory lists 1.0.2 as not
+    affected, but `ESS_get_signing_cert()` in 1.0.2 performs the same
+    unchecked access, so the fix was applied here as well.
+
+    Reported by: Luigino Camastra (Aisle Research)
+
+    (CVE-2025-69420)
+    [Bob Beck]
+
  Changes between 1.0.2zm and 1.0.2zn [27 Jan 2026]
 
  *) Fixed Heap out-of-bounds write in `BIO_f_linebuffer` on short writes.
