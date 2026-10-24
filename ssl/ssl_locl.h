@@ -500,6 +500,14 @@
 # define SSL_CLIENT_USE_SIGALGS(s)        \
     SSL_CLIENT_USE_TLS1_2_CIPHERS(s)
 
+/*
+ * Limits on the number of records dtls1_buffer_record() will hold, to prevent
+ * DOS attacks. Records arriving early for the next epoch get a tighter limit:
+ * a legitimate peer only ever has a small burst of those in flight.
+ */
+#define DTLS1_MAX_UNPROCESSED_RECORDS 16
+#define DTLS1_MAX_BUFFERED_RECORDS 100
+
 /* Mostly for SSLv3 */
 # define SSL_PKEY_RSA_ENC        0
 # define SSL_PKEY_RSA_SIGN       1

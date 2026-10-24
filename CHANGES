@@ -7,6 +7,51 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zq and 1.0.2zr [25 Aug 2026]
+
+ *) Fixed excessive memory use buffering DTLS records for a future epoch.
+
+    Issue summary: Receiving a DTLS record for a future epoch while a
+    handshake is in progress causes OpenSSL to buffer far more memory than
+    the record itself requires.
+
+    Impact summary: A peer can use a small amount of network traffic to make
+    an OpenSSL DTLS endpoint retain a large amount of memory, which may lead
+    to a Denial of Service.
+
+    Reported by: Amazon Web Services.
+
+    (CVE-2026-54874)
+    [Matt Caswell]
+
+ *) Fixed heap buffer overflow in CMS key unwrapping.
+
+    Issue summary: When unwrapping a CMS KeyAgreeRecipientInfo key, the output
+    buffer was sized for a successful unwrap, while the key wrap primitive's
+    integrity-failure path may write and cleanse up to the full input length,
+    writing past the end of the allocation.
+
+    Impact summary: A heap buffer overflow may lead to a crash or possibly
+    attacker controlled code execution or other undefined behaviour.  The
+    OpenSSL advisory lists 1.0.2 as not affected; the fix was applied here as
+    hardening.
+
+    Reported by: Bhabani Sankar Das and Filipe Casal (Trail of Bits)
+
+    (CVE-2026-63072)
+    [Daniel Kubec]
+
+ *) Grow the handshake message buffer incrementally as data is received.
+
+    Rather than growing `init_buf` up front to the full length a peer claims
+    for a handshake message, the buffer is now grown as the message body
+    actually arrives, so a peer can no longer force a large allocation by
+    announcing a large message that it never sends ("HollowByte").
+
+    Reported by: Okta Red Team
+
+    [Matt Caswell]
+
  Changes between 1.0.2zp and 1.0.2zq [9 Jun 2026]
 
  *) Fixed possible heap buffer overflow in ASN.1 multibyte string conversion.

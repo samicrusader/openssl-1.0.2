@@ -335,6 +335,21 @@ unsigned long ssl3_output_cert_chain(SSL *s, CERT_PKEY *cpk)
     return l + SSL_HM_HEADER_LENGTH(s);
 }
 
+static int grow_init_buf(SSL *s, int size) {
+
+    size_t msg_offset = (char *)s->init_msg - s->init_buf->data;
+
+    if (size < 0 || (size_t)size < msg_offset)
+        return 0;
+
+    if (!BUF_MEM_grow_clean(s->init_buf, size))
+        return 0;
+
+    s->init_msg = s->init_buf->data + msg_offset;
+
+    return 1;
+}
+
 /*
  * Obtain handshake message of message type 'mt' (any if mt == -1), maximum
  * acceptable body length 'max'. The first four bytes (msg_type and length)
@@ -344,7 +359,7 @@ long ssl3_get_message(SSL *s, int st1, int stn, int mt, long max, int *ok)
 {
     unsigned char *p;
     unsigned long l;
-    long n;
+    long toread;
     int i, al;
 
     if (s->s3->tmp.reuse_message) {
@@ -417,16 +432,6 @@ long ssl3_get_message(SSL *s, int st1, int stn, int mt, long max, int *ok)
             SSLerr(SSL_F_SSL3_GET_MESSAGE, SSL_R_EXCESSIVE_MESSAGE_SIZE);
             goto f_err;
         }
-        /*
-         * Make buffer slightly larger than message length as a precaution
-         * against small OOB reads e.g. CVE-2016-6306
-         */
-        if (l
-            && !BUF_MEM_grow_clean(s->init_buf,
-                                   (int)l + SSL3_HM_HEADER_LENGTH + 16)) {
-            SSLerr(SSL_F_SSL3_GET_MESSAGE, ERR_R_BUF_LIB);
-            goto err;
-        }
         s->s3->tmp.message_size = l;
         s->state = stn;
 
@@ -435,18 +440,32 @@ long ssl3_get_message(SSL *s, int st1, int stn, int mt, long max, int *ok)
     }
 
     /* next state (stn) */
-    p = s->init_msg;
-    n = s->s3->tmp.message_size - s->init_num;
-    while (n > 0) {
+    toread = s->s3->tmp.message_size - s->init_num;
+    while (toread > 0) {
+        int chunk = toread > SSL3_RT_MAX_PLAIN_LENGTH ? SSL3_RT_MAX_PLAIN_LENGTH : toread;
+
+        /*
+         * We incrementally allocate the buffer to guard against the peer
+         * claiming a very large message size and then not sending it.
+         *
+         * Make buffer slightly larger than message length as a precaution
+         * against small OOB reads e.g. CVE-2016-6306
+         */
+        if (!grow_init_buf(s, s->init_num + chunk + SSL3_HM_HEADER_LENGTH + 16)) {
+            SSLerr(SSL_F_SSL3_GET_MESSAGE, ERR_R_BUF_LIB);
+            goto err;
+        }
+
+        p = s->init_msg;
         i = s->method->ssl_read_bytes(s, SSL3_RT_HANDSHAKE, &p[s->init_num],
-                                      n, 0);
+                                      chunk, 0);
         if (i <= 0) {
             s->rwstate = SSL_READING;
             *ok = 0;
             return i;
         }
         s->init_num += i;
-        n -= i;
+        toread -= i;
     }
 
 #ifndef OPENSSL_NO_NEXTPROTONEG

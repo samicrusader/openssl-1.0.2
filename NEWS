@@ -5,6 +5,14 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zq and OpenSSL 1.0.2zr [25 Aug 2026]
+
+      o Fixed excessive memory use buffering DTLS records for a future epoch.
+        (CVE-2026-54874)
+      o Fixed heap buffer overflow in CMS key unwrapping.
+        (CVE-2026-63072)
+      o Grow the handshake message buffer incrementally as data is received.
+
   Major changes between OpenSSL 1.0.2zp and OpenSSL 1.0.2zq [9 Jun 2026]
 
       o Fixed possible heap buffer overflow in ASN.1 multibyte string conversion.
