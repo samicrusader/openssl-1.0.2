@@ -107,7 +107,8 @@ int BN_add(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
 int BN_uadd(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
 {
     int max, min, dif;
-    BN_ULONG *ap, *bp, *rp, carry, t1, t2;
+    const BN_ULONG *ap, *bp;
+    BN_ULONG *rp, carry, t1, t2;
     const BIGNUM *tmp;
 
     bn_check_top(a);
@@ -134,29 +135,17 @@ int BN_uadd(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
     carry = bn_add_words(rp, ap, bp, min);
     rp += min;
     ap += min;
-    bp += min;
 
-    if (carry) {
-        while (dif) {
-            dif--;
-            t1 = *(ap++);
-            t2 = (t1 + 1) & BN_MASK2;
-            *(rp++) = t2;
-            if (t2) {
-                carry = 0;
-                break;
-            }
-        }
-        if (carry) {
-            /* carry != 0 => dif == 0 */
-            *rp = 1;
-            r->top++;
-        }
+    while (dif) {
+        dif--;
+        t1 = *(ap++);
+        t2 = (t1 + carry) & BN_MASK2;
+        *(rp++) = t2;
+        carry &= (t2 == 0);
     }
-    if (dif && rp != ap)
-        while (dif--)
-            /* copy remaining words if ap != rp */
-            *(rp++) = *(ap++);
+    *rp = carry;
+    r->top += carry;
+
     r->neg = 0;
     bn_check_top(r);
     return 1;
@@ -166,11 +155,8 @@ int BN_uadd(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
 int BN_usub(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
 {
     int max, min, dif;
-    register BN_ULONG t1, t2, *ap, *bp, *rp;
-    int i, carry;
-#if defined(IRIX_CC_BUG) && !defined(LINT)
-    int dummy;
-#endif
+    BN_ULONG t1, t2, borrow, *rp;
+    const BN_ULONG *ap, *bp;
 
     bn_check_top(a);
     bn_check_top(b);
@@ -191,68 +177,25 @@ int BN_usub(BIGNUM *r, const BIGNUM *a, const BIGNUM *b)
     bp = b->d;
     rp = r->d;
 
-#if 1
-    carry = 0;
-    for (i = min; i != 0; i--) {
-        t1 = *(ap++);
-        t2 = *(bp++);
-        if (carry) {
-            carry = (t1 <= t2);
-            t1 = (t1 - t2 - 1) & BN_MASK2;
-        } else {
-            carry = (t1 < t2);
-            t1 = (t1 - t2) & BN_MASK2;
-        }
-# if defined(IRIX_CC_BUG) && !defined(LINT)
-        dummy = t1;
-# endif
-        *(rp++) = t1 & BN_MASK2;
-    }
-#else
-    carry = bn_sub_words(rp, ap, bp, min);
+    borrow = bn_sub_words(rp, ap, bp, min);
     ap += min;
-    bp += min;
     rp += min;
-#endif
-    if (carry) {                /* subtracted */
-        if (!dif)
-            /* error: a < b */
-            return 0;
-        while (dif) {
-            dif--;
-            t1 = *(ap++);
-            t2 = (t1 - 1) & BN_MASK2;
-            *(rp++) = t2;
-            if (t1)
-                break;
-        }
+
+    while (dif) {
+        dif--;
+        t1 = *(ap++);
+        t2 = (t1 - borrow) & BN_MASK2;
+        *(rp++) = t2;
+        borrow &= (t1 == 0);
     }
-#if 0
-    memcpy(rp, ap, sizeof(*rp) * (max - i));
-#else
-    if (rp != ap) {
-        for (;;) {
-            if (!dif--)
-                break;
-            rp[0] = ap[0];
-            if (!dif--)
-                break;
-            rp[1] = ap[1];
-            if (!dif--)
-                break;
-            rp[2] = ap[2];
-            if (!dif--)
-                break;
-            rp[3] = ap[3];
-            rp += 4;
-            ap += 4;
-        }
-    }
-#endif
+
+    while (max && *--rp == 0)
+        max--;
 
     r->top = max;
     r->neg = 0;
-    bn_correct_top(r);
+    bn_pollute(r);
+
     return (1);
 }
 

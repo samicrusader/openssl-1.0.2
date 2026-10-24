@@ -7,6 +7,57 @@
  https://github.com/openssl/openssl/commits/ and pick the appropriate
  release branch.
 
+ Changes between 1.0.2zr and 1.0.2zs [29 Sep 2026]
+
+ *) Fixed DTLS retransmission of handshake messages from a stale buffer
+    offset.
+
+    Issue summary: The DTLS retransmission logic does not correctly handle a
+    handshake message write that has been suspended partway through, so a
+    retransmission can read past the end of the message buffer and corrupt
+    the state the suspended write depends on.
+
+    Impact summary: The retransmitted message may disclose heap memory to the
+    peer as plaintext handshake data, or crash the process (Denial of Service)
+    if the read reaches unmapped memory.
+
+    Reported by: Laurent Gaffie (secorizon.com).
+
+    (CVE-2026-84782)
+    [Ryan Hooper]
+
+ *) Fixed timing side-channel in scalar multiplication for non-NIST EC curves.
+
+    Issue summary: The generic elliptic curve scalar multiplication used for
+    ECDSA signing on curves without a dedicated constant-time implementation
+    leaks information about the secret nonce through timing.  The NIST P-256,
+    P-384 and P-521 curves are not affected.
+
+    Impact summary: An attacker able to measure signing times may learn
+    information about the nonce, and over many signatures could recover the
+    private key with a lattice (Hidden Number Problem) attack.
+
+    Reported by: Alicja Kario and George Pantelakis (Red Hat), based on a
+    report by Youngjae Choi (Korea University).
+
+    (CVE-2026-54872)
+    [Igor Ustinov]
+
+ *) Fixed excessive memory allocation in relative CRLDP processing.
+
+    Issue summary: A certificate with many nameRelativeToCRLIssuer CRL
+    distribution points causes disproportionate heap growth when OpenSSL
+    caches the certificate's X.509v3 extensions.
+
+    Impact summary: A crafted certificate presented by a malicious peer can
+    cause significant memory pressure, and possibly a Denial of Service, in
+    clients or in servers that request client certificates.
+
+    Reported by: Fuzz0x (ZKSC Institute of Security Research).
+
+    (CVE-2026-35189)
+    [Viktor Dukhovni]
+
  Changes between 1.0.2zq and 1.0.2zr [25 Aug 2026]
 
  *) Fixed excessive memory use buffering DTLS records for a future epoch.

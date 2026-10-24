@@ -5,6 +5,17 @@
   This file gives a brief overview of the major changes between each OpenSSL
   release. For more details please read the CHANGES file.
 
+  Major changes between OpenSSL 1.0.2zr and OpenSSL 1.0.2zs [29 Sep 2026]
+
+      o Fixed DTLS retransmission of handshake messages from a stale buffer
+        offset.
+        (CVE-2026-84782)
+      o Fixed timing side-channel in scalar multiplication for non-NIST EC
+        curves.
+        (CVE-2026-54872)
+      o Fixed excessive memory allocation in relative CRLDP processing.
+        (CVE-2026-35189)
+
   Major changes between OpenSSL 1.0.2zq and OpenSSL 1.0.2zr [25 Aug 2026]
 
       o Fixed excessive memory use buffering DTLS records for a future epoch.

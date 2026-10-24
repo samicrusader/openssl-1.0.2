@@ -760,7 +760,7 @@ dsatest.o: ../include/openssl/opensslconf.h ../include/openssl/opensslv.h
 dsatest.o: ../include/openssl/ossl_typ.h ../include/openssl/rand.h
 dsatest.o: ../include/openssl/safestack.h ../include/openssl/stack.h
 dsatest.o: ../include/openssl/symhacks.h dsatest.c
-dtlstest.o: ../include/openssl/asn1.h ../include/openssl/bio.h
+dtlstest.o: ../e_os.h ../include/openssl/asn1.h ../include/openssl/bio.h
 dtlstest.o: ../include/openssl/buffer.h ../include/openssl/comp.h
 dtlstest.o: ../include/openssl/crypto.h ../include/openssl/dtls1.h
 dtlstest.o: ../include/openssl/e_os2.h ../include/openssl/ec.h

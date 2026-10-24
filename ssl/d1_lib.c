@@ -523,6 +523,24 @@ int dtls1_handle_timeout(SSL *s)
 #endif
 
     dtls1_start_timer(s);
+
+    /*
+     * If a write is still parked mid-message (the last call into the state
+     * machine returned WANT_WRITE, leaving s->rwstate at SSL_WRITING), the
+     * current flight hasn't actually finished going out yet, so there is
+     * nothing valid to retransmit. Retransmitting anyway would reconstruct
+     * an already-sent message from the retransmit queue into
+     * s->init_buf/s->init_off/s->init_num/s->d1->w_msg_hdr - the same fields
+     * the parked write is still using - corrupting that write's state out
+     * from under it. Once such a retransmit ran to completion it would leave
+     * s->init_off and s->init_num both 0, so resuming the parked write would
+     * re-enter dtls1_do_write() and trip its entry assertion. Leave it alone
+     * and let the next SSL_read()/SSL_write()/SSL_accept()/SSL_connect()
+     * call resume the parked write normally instead.
+     */
+    if (s->rwstate == SSL_WRITING)
+        return 0;
+
     return dtls1_retransmit_buffered_messages(s);
 }
 

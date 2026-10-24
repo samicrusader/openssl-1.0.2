@@ -21,6 +21,12 @@ int bn_mod_exp_mont_fixed_top(BIGNUM *rr, const BIGNUM *a, const BIGNUM *p,
                               const BIGNUM *m, BN_CTX *ctx,
                               BN_MONT_CTX *in_mont);
 
+/*
+ * Zero-extend |a| to exactly |words| words and flag it BN_FLG_FIXED_TOP,
+ * leaving its value unchanged.  |words| must not be below the current top.
+ */
+int bn_set_top_fixed(BIGNUM *a, int words);
+
 int bn_bn2binpad(const BIGNUM *a, unsigned char *to, int tolen);
 
 BIGNUM *bn_lebin2bn(const unsigned char *s, int len, BIGNUM *ret);

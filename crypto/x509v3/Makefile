@@ -33,7 +33,7 @@ v3_asid.o v3_addr.o v3_scts.o
 SRC= $(LIBSRC)
 
 EXHEADER= x509v3.h
-HEADER=	$(EXHEADER) pcy_int.h
+HEADER=	$(EXHEADER) pcy_int.h x509v3_local.h
 
 ALL=    $(GENERAL) $(SRC) $(HEADER)
 
@@ -313,6 +313,7 @@ v3_crld.o: ../../include/openssl/safestack.h ../../include/openssl/sha.h
 v3_crld.o: ../../include/openssl/stack.h ../../include/openssl/symhacks.h
 v3_crld.o: ../../include/openssl/x509.h ../../include/openssl/x509_vfy.h
 v3_crld.o: ../../include/openssl/x509v3.h ../cryptlib.h v3_crld.c
+v3_crld.o: x509v3_local.h
 v3_enum.o: ../../e_os.h ../../include/openssl/asn1.h
 v3_enum.o: ../../include/openssl/bio.h ../../include/openssl/buffer.h
 v3_enum.o: ../../include/openssl/conf.h ../../include/openssl/crypto.h

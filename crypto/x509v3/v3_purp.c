@@ -344,10 +344,8 @@ int X509_supported_extension(X509_EXTENSION *ex)
     return 0;
 }
 
-static void setup_dp(X509 *x, DIST_POINT *dp)
+static void setup_dp(DIST_POINT *dp)
 {
-    X509_NAME *iname = NULL;
-    int i;
     if (dp->reasons) {
         if (dp->reasons->length > 0)
             dp->dp_reasons = dp->reasons->data[0];
@@ -356,28 +354,15 @@ static void setup_dp(X509 *x, DIST_POINT *dp)
         dp->dp_reasons &= CRLDP_ALL_REASONS;
     } else
         dp->dp_reasons = CRLDP_ALL_REASONS;
-    if (!dp->distpoint || (dp->distpoint->type != 1))
-        return;
-    for (i = 0; i < sk_GENERAL_NAME_num(dp->CRLissuer); i++) {
-        GENERAL_NAME *gen = sk_GENERAL_NAME_value(dp->CRLissuer, i);
-        if (gen->type == GEN_DIRNAME) {
-            iname = gen->d.directoryName;
-            break;
-        }
-    }
-    if (!iname)
-        iname = X509_get_issuer_name(x);
-
-    DIST_POINT_set_dpname(dp->distpoint, iname);
-
 }
 
 static void setup_crldp(X509 *x)
 {
     int i;
+
     x->crldp = X509_get_ext_d2i(x, NID_crl_distribution_points, NULL, NULL);
     for (i = 0; i < sk_DIST_POINT_num(x->crldp); i++)
-        setup_dp(x, sk_DIST_POINT_value(x->crldp, i));
+        setup_dp(sk_DIST_POINT_value(x->crldp, i));
 }
 
 #define V1_ROOT (EXFLAG_V1|EXFLAG_SS)
